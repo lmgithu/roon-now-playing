@@ -52,17 +52,7 @@ export function createFactsRouter(): Router {
       return;
     }
 
-    const config = configStore.get();
-
-    // Local LLM does not require an API key; cloud providers do
-    if (!configStore.isConfigured()) {
-      res.status(503).json({
-        error: { type: 'no-key', message: config.provider === 'local' ? 'Local LLM model not configured' : 'No API key configured' },
-      });
-      return;
-    }
-
-    // Check cache first
+    // Serve pre-filled / previously generated cache without requiring an API key
     const cached = cache.get(artist, album, title);
     if (cached && cached.length > 0) {
       const timestamp = cache.getTimestamp(artist, album, title);
@@ -75,14 +65,29 @@ export function createFactsRouter(): Router {
       return;
     }
 
-    // Generate new facts (coalesced)
+    const config = configStore.get();
+
+    // Local LLM does not require an API key; cloud providers do
+    if (!configStore.isConfigured()) {
+      res.status(503).json({
+        error: {
+          type: 'no-key',
+          message:
+            config.provider === 'local'
+              ? 'Local LLM model not configured'
+              : 'No API key configured (and no cached facts for this track)',
+        },
+      });
+      return;
+    }
+
+    // Generate new facts (coalesced) and append to the same cache file
     try {
       const start = Date.now();
       const facts = await generateAndCache(artist, album, title);
       logger.info(`[Facts] Generated ${facts.length} facts for ${artist} — ${title} in ${Date.now() - start}ms`);
 
       if (facts.length === 0) {
-        // Use 502 so clients treat this as failure (not success with undefined facts)
         res.status(502).json({
           error: { type: 'empty', message: 'No facts generated' },
           facts: [],
@@ -109,7 +114,6 @@ export function createFactsRouter(): Router {
   // Get facts configuration
   router.get('/facts/config', (_req, res) => {
     const config = configStore.get();
-    // Don't expose full API key
     res.json({
       ...config,
       apiKey: config.apiKey ? '••••••••' + config.apiKey.slice(-4) : '',
@@ -122,7 +126,6 @@ export function createFactsRouter(): Router {
   router.post('/facts/config', (req, res) => {
     const updates = req.body as Partial<FactsConfig>;
 
-    // Don't save masked API key (contains bullet points from UI display)
     if (updates.apiKey && updates.apiKey.includes('••••')) {
       delete updates.apiKey;
     }
@@ -130,6 +133,60 @@ export function createFactsRouter(): Router {
     configStore.update(updates);
     logger.info('Facts config updated');
     res.json({ success: true });
+  });
+
+  // --- Cache import / export ---
+
+  router.get('/facts/cache', (_req, res) => {
+    res.json({
+      entryCount: cache.size(),
+    });
+  });
+
+  router.get('/facts/cache/export', (_req, res) => {
+    const data = cache.exportAll();
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="facts-cache-${new Date().toISOString().slice(0, 10)}.json"`
+    );
+    res.send(JSON.stringify(data, null, 2));
+  });
+
+  router.post('/facts/cache/import', (req, res) => {
+    try {
+      const body = (req.body ?? {}) as {
+        entries?: unknown;
+        mode?: 'merge' | 'replace';
+        resetTimestamps?: boolean;
+        overwrite?: boolean;
+        [key: string]: unknown;
+      };
+
+      // Prefer { entries, mode, resetTimestamps }; also accept a raw cache map as the body
+      const payload =
+        body.entries !== undefined ? body.entries : stripImportMeta(body);
+
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        res.status(400).json({
+          error:
+            'Request must include cache entries (facts-cache.json object, or { entries: {...}, mode, resetTimestamps })',
+        });
+        return;
+      }
+
+      const mode = body.mode === 'replace' ? 'replace' : 'merge';
+      const resetTimestamps = body.resetTimestamps !== false; // default true
+      const overwrite = body.overwrite !== false;
+
+      const result = cache.importEntries(payload, { mode, resetTimestamps, overwrite });
+      res.json({ success: true, ...result });
+    } catch (error) {
+      logger.error(`Facts cache import failed: ${error}`);
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Import failed',
+      });
+    }
   });
 
   // Test facts generation
@@ -153,7 +210,6 @@ export function createFactsRouter(): Router {
     const startTime = Date.now();
 
     try {
-      // Bypass cache for tests so config changes are measurable
       const provider = createLLMProvider(config);
       const facts = await provider.generateFacts(artist, album, title);
       const durationMs = Date.now() - startTime;
@@ -178,4 +234,26 @@ export function createFactsRouter(): Router {
   });
 
   return router;
+}
+
+function hasCacheShape(obj: object): boolean {
+  const keys = Object.keys(obj);
+  if (keys.length === 0) return false;
+  // meta keys only → not a cache map
+  const meta = new Set(['entries', 'mode', 'resetTimestamps', 'overwrite']);
+  const sample = keys.filter((k) => !meta.has(k)).slice(0, 5);
+  if (sample.length === 0) return false;
+  return sample.some((k) => k.includes('::'));
+}
+
+function stripImportMeta(body: Record<string, unknown>): unknown {
+  if (hasCacheShape(body)) {
+    const copy = { ...body };
+    delete copy.mode;
+    delete copy.resetTimestamps;
+    delete copy.overwrite;
+    delete copy.entries;
+    return copy;
+  }
+  return body.entries;
 }

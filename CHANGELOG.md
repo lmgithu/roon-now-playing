@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.3] - 2026-07-28
+
+### Added
+
+- **Facts cache import/export in Admin → AI Facts**: upload a pre-generated `facts-cache.json`, merge or replace, and optionally **reset timestamps** so TTL does not re-generate imported tracks immediately. Export downloads the live cache. AI generation still appends missing tracks to the same file. Cached facts are served without requiring an API key.
+
 ## [1.9.2] - 2026-07-28
 
 ### Fixed

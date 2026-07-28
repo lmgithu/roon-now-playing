@@ -24,9 +24,33 @@ function resolveTtlMs(): number {
 
 const TTL_MS = resolveTtlMs();
 
-interface CacheEntry {
+export interface CacheEntry {
   facts: string[];
   timestamp: number;
+}
+
+export interface FactsCacheImportOptions {
+  /** merge = keep existing keys unless overwritten; replace = clear first */
+  mode: 'merge' | 'replace';
+  /**
+   * When true (default), set every imported entry's timestamp to now so TTL
+   * does not immediately expire pre-generated / older cache files.
+   */
+  resetTimestamps: boolean;
+  /**
+   * When merging, overwrite keys that already exist (default true).
+   * If false, existing entries are kept and import skips those keys.
+   */
+  overwrite?: boolean;
+}
+
+export interface FactsCacheImportResult {
+  imported: number;
+  skipped: number;
+  invalid: number;
+  total: number;
+  mode: 'merge' | 'replace';
+  resetTimestamps: boolean;
 }
 
 export class FactsCache {
@@ -111,12 +135,115 @@ export class FactsCache {
     return entry?.timestamp ?? null;
   }
 
-  /** Flush pending debounced writes (useful in tests). */
+  size(): number {
+    return this.cache.size;
+  }
+
+  /** Full cache object for export (same shape as facts-cache.json on disk). */
+  exportAll(): Record<string, CacheEntry> {
+    return Object.fromEntries(this.cache);
+  }
+
+  /**
+   * Import a pre-generated facts-cache.json payload.
+   * Expected shape: { "artist::album::title": { facts: string[], timestamp?: number } }
+   */
+  importEntries(
+    data: unknown,
+    options: FactsCacheImportOptions
+  ): FactsCacheImportResult {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('Cache file must be a JSON object keyed by artist::album::title');
+    }
+
+    const entries = data as Record<string, unknown>;
+    const keys = Object.keys(entries);
+    if (keys.length === 0) {
+      throw new Error('Cache file contains no entries');
+    }
+
+    const now = Date.now();
+    const overwrite = options.overwrite !== false;
+    let imported = 0;
+    let skipped = 0;
+    let invalid = 0;
+
+    if (options.mode === 'replace') {
+      this.cache.clear();
+    }
+
+    for (const [key, raw] of Object.entries(entries)) {
+      if (!key || typeof key !== 'string' || !key.includes('::')) {
+        invalid++;
+        continue;
+      }
+
+      const normalized = this.normalizeImportEntry(raw, options.resetTimestamps, now);
+      if (!normalized) {
+        invalid++;
+        continue;
+      }
+
+      if (options.mode === 'merge' && !overwrite && this.cache.has(key)) {
+        skipped++;
+        continue;
+      }
+
+      // Always store under the provided key (keys are already lowercased by generators)
+      this.cache.set(key.toLowerCase(), normalized);
+      imported++;
+    }
+
+    this.flush();
+    logger.info(
+      `[FactsCache] Import ${options.mode}: +${imported} imported, ${skipped} skipped, ${invalid} invalid → ${this.cache.size} total`
+    );
+
+    return {
+      imported,
+      skipped,
+      invalid,
+      total: this.cache.size,
+      mode: options.mode,
+      resetTimestamps: options.resetTimestamps,
+    };
+  }
+
+  private normalizeImportEntry(
+    raw: unknown,
+    resetTimestamps: boolean,
+    now: number
+  ): CacheEntry | null {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const obj = raw as { facts?: unknown; timestamp?: unknown };
+
+    // Allow bare string[] as a value (some tools may have written that)
+    let facts: string[];
+    if (Array.isArray(raw) && raw.every((f) => typeof f === 'string')) {
+      facts = (raw as string[]).map((f) => f.trim()).filter(Boolean);
+    } else if (Array.isArray(obj.facts) && obj.facts.every((f) => typeof f === 'string')) {
+      facts = (obj.facts as string[]).map((f) => f.trim()).filter(Boolean);
+    } else {
+      return null;
+    }
+
+    if (facts.length === 0) return null;
+
+    let timestamp = now;
+    if (!resetTimestamps && typeof obj.timestamp === 'number' && Number.isFinite(obj.timestamp)) {
+      timestamp = obj.timestamp;
+    }
+
+    return { facts, timestamp };
+  }
+
+  /** Flush pending debounced writes (useful in tests / after bulk import). */
   flush(): void {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
-      this.save();
     }
+    this.save();
   }
 }

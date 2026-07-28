@@ -133,4 +133,56 @@ describe('FactsCache', () => {
     const result = cache.get("Artist's Name", 'Album (Deluxe)', 'Title: Remix');
     expect(result).toEqual(facts);
   });
+
+  it('should import cache with reset timestamps so old files are not expired', () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    vi.setSystemTime(now);
+
+    const oldTs = now - TTL_MS - 60_000; // older than TTL
+    const result = cache.importEntries(
+      {
+        'artist::album::title': {
+          facts: ['Imported fact about the track.'],
+          timestamp: oldTs,
+        },
+      },
+      { mode: 'merge', resetTimestamps: true }
+    );
+
+    expect(result.imported).toBe(1);
+    expect(result.total).toBe(1);
+    expect(cache.get('artist', 'album', 'title')).toEqual(['Imported fact about the track.']);
+    expect(cache.getTimestamp('artist', 'album', 'title')).toBe(now);
+  });
+
+  it('should merge imports without wiping existing entries', () => {
+    cache.set('A', 'B', 'C', ['Existing']);
+    cache.flush();
+
+    cache.importEntries(
+      {
+        'x::y::z': { facts: ['New'], timestamp: 1 },
+      },
+      { mode: 'merge', resetTimestamps: true }
+    );
+
+    expect(cache.get('A', 'B', 'C')).toEqual(['Existing']);
+    expect(cache.get('x', 'y', 'z')).toEqual(['New']);
+    expect(cache.size()).toBe(2);
+  });
+
+  it('should replace cache when mode is replace', () => {
+    cache.set('A', 'B', 'C', ['Existing']);
+    cache.importEntries(
+      {
+        'x::y::z': { facts: ['Only'], timestamp: 1 },
+      },
+      { mode: 'replace', resetTimestamps: true }
+    );
+
+    expect(cache.get('A', 'B', 'C')).toBeNull();
+    expect(cache.get('x', 'y', 'z')).toEqual(['Only']);
+    expect(cache.size()).toBe(1);
+  });
 });

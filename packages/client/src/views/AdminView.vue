@@ -45,6 +45,16 @@ const showAdvanced = ref(false);
 const factsConfigError = ref<string | null>(null);
 const factsConfigSuccess = ref(false);
 
+// Facts cache import/export
+const cacheEntryCount = ref(0);
+const cacheImportMode = ref<'merge' | 'replace'>('merge');
+const cacheResetTimestamps = ref(true);
+const cacheImporting = ref(false);
+const cacheExporting = ref(false);
+const cacheMessage = ref<string | null>(null);
+const cacheError = ref<string | null>(null);
+const cacheFileInput = ref<HTMLInputElement | null>(null);
+
 // Test facts state
 const testArtist = ref('The Beatles');
 const testAlbum = ref('Abbey Road');
@@ -327,6 +337,102 @@ function resetFactsConfig(): void {
   };
 }
 
+async function loadCacheStats(): Promise<void> {
+  try {
+    const response = await fetch('/api/facts/cache');
+    if (response.ok) {
+      const data = await response.json();
+      cacheEntryCount.value = data.entryCount ?? 0;
+    }
+  } catch (error) {
+    console.error('Failed to load facts cache stats:', error);
+  }
+}
+
+async function exportFactsCache(): Promise<void> {
+  cacheExporting.value = true;
+  cacheError.value = null;
+  cacheMessage.value = null;
+  try {
+    const response = await fetch('/api/facts/cache/export');
+    if (!response.ok) {
+      throw new Error('Export failed');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `facts-cache-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    cacheMessage.value = 'Cache exported.';
+  } catch (error) {
+    cacheError.value = error instanceof Error ? error.message : 'Export failed';
+  } finally {
+    cacheExporting.value = false;
+  }
+}
+
+function triggerCacheImport(): void {
+  cacheFileInput.value?.click();
+}
+
+async function onCacheFileSelected(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  // Allow re-selecting the same file later
+  input.value = '';
+  if (!file) return;
+
+  cacheImporting.value = true;
+  cacheError.value = null;
+  cacheMessage.value = null;
+
+  try {
+    const text = await file.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error('Selected file is not valid JSON');
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Cache file must be a JSON object (facts-cache.json format)');
+    }
+
+    const response = await fetch('/api/facts/cache/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entries: parsed,
+        mode: cacheImportMode.value,
+        resetTimestamps: cacheResetTimestamps.value,
+        overwrite: true,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Import failed');
+    }
+
+    cacheEntryCount.value = data.total ?? cacheEntryCount.value;
+    cacheMessage.value =
+      `Imported ${data.imported} track(s)` +
+      (data.skipped ? `, skipped ${data.skipped}` : '') +
+      (data.invalid ? `, invalid ${data.invalid}` : '') +
+      ` → ${data.total} total` +
+      (data.resetTimestamps ? ' (timestamps refreshed)' : '');
+  } catch (error) {
+    cacheError.value = error instanceof Error ? error.message : 'Import failed';
+  } finally {
+    cacheImporting.value = false;
+  }
+}
+
 function onProviderChange(): void {
   const models = LLM_MODELS[factsConfig.value.provider];
   if (models && models.length > 0) {
@@ -493,6 +599,7 @@ function formatLastSeen(timestamp: string | number): string {
 
 onMounted(() => {
   loadFactsConfig();
+  loadCacheStats();
   loadSourcesData();
   loadDisplaySettings();
 });
@@ -973,6 +1080,79 @@ onMounted(() => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <!-- Facts Cache Card -->
+            <div class="config-card">
+              <h2 class="card-title">Facts Cache</h2>
+              <p class="field-hint" style="margin-top: 0; margin-bottom: 16px;">
+                Pre-fill <code>facts-cache.json</code> from a saved file so playback can serve facts without calling the AI.
+                Missing tracks still generate via AI and append to the same cache. Current entries:
+                <strong>{{ cacheEntryCount.toLocaleString() }}</strong>
+              </p>
+
+              <div class="form-grid">
+                <div class="form-field">
+                  <label for="cacheImportMode">Import mode</label>
+                  <select id="cacheImportMode" v-model="cacheImportMode">
+                    <option value="merge">Merge (add / overwrite keys)</option>
+                    <option value="replace">Replace (clear existing first)</option>
+                  </select>
+                </div>
+
+                <div class="form-field">
+                  <label class="checkbox-label" for="cacheResetTimestamps">
+                    <input
+                      id="cacheResetTimestamps"
+                      type="checkbox"
+                      v-model="cacheResetTimestamps"
+                    />
+                    Reset timestamps on import
+                  </label>
+                  <p class="field-hint">
+                    Recommended: marks every imported track as fresh so TTL does not force re-generation right away.
+                  </p>
+                </div>
+              </div>
+
+              <div class="cache-actions">
+                <input
+                  ref="cacheFileInput"
+                  type="file"
+                  accept="application/json,.json"
+                  class="hidden-file-input"
+                  @change="onCacheFileSelected"
+                />
+                <button
+                  type="button"
+                  class="btn-primary"
+                  :disabled="cacheImporting"
+                  @click="triggerCacheImport"
+                >
+                  <span v-if="cacheImporting" class="loading-dots">Importing</span>
+                  <span v-else>Import facts-cache.json</span>
+                </button>
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  :disabled="cacheExporting || cacheEntryCount === 0"
+                  @click="exportFactsCache"
+                >
+                  <span v-if="cacheExporting" class="loading-dots">Exporting</span>
+                  <span v-else>Export cache</span>
+                </button>
+              </div>
+
+              <Transition name="message">
+                <div v-if="cacheError" class="message-card error" style="margin-top: 16px;">
+                  <span>{{ cacheError }}</span>
+                </div>
+              </Transition>
+              <Transition name="message">
+                <div v-if="cacheMessage" class="message-card success" style="margin-top: 16px;">
+                  <span>{{ cacheMessage }}</span>
+                </div>
+              </Transition>
             </div>
 
             <!-- Advanced Card -->
@@ -2178,6 +2358,44 @@ onMounted(() => {
 .btn-secondary:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cache-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.cache-actions .btn-primary,
+.cache-actions .btn-secondary {
+  flex: 1 1 180px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.checkbox-label input[type='checkbox'] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .loading-dots::after {
