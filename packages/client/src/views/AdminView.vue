@@ -219,7 +219,8 @@ async function pushSetting(
 }
 
 function getLayoutDisplayName(layout: LayoutType): string {
-  return layout.charAt(0).toUpperCase() + layout.slice(1);
+  if (layout === 'rpi-facts-carousel') return 'RPi Facts Carousel';
+  return layout.charAt(0).toUpperCase() + layout.slice(1).replace(/-/g, ' ');
 }
 
 function getFontDisplayName(font: FontType): string {

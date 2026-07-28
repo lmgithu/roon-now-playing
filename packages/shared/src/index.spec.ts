@@ -109,7 +109,7 @@ describe('Shared Types', () => {
     });
 
     it('should have correct number of layouts', () => {
-      expect(LAYOUTS).toHaveLength(9);
+      expect(LAYOUTS).toHaveLength(10);
     });
   });
 
@@ -208,10 +208,11 @@ describe('Facts Types', () => {
       expect(LAYOUTS).toContain('facts-columns');
       expect(LAYOUTS).toContain('facts-overlay');
       expect(LAYOUTS).toContain('facts-carousel');
+      expect(LAYOUTS).toContain('rpi-facts-carousel');
     });
 
     it('should have correct total number of layouts', () => {
-      expect(LAYOUTS).toHaveLength(9); // 5 existing + 3 facts + 1 basic
+      expect(LAYOUTS).toHaveLength(10); // 5 base + 4 facts + 1 basic
     });
 
     it('should export LLM_PROVIDERS constant', () => {

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.4] - 2026-07-28
+
+### Added
+
+- **RPi Facts Carousel** layout (`rpi-facts-carousel`): Pi 3 / weak-GPU friendly facts view — solid tinted background (no CSS blur), sharp cover art beside the progress strip, throttled progress updates, fact text + time remaining. Select it in Admin for Chromium kiosk displays.
+
 ## [1.9.3] - 2026-07-28
 
 ### Added

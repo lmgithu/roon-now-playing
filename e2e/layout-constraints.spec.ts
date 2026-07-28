@@ -327,6 +327,7 @@ test.describe('All Layouts Smoke Test', () => {
     'facts-columns',
     'facts-overlay',
     'facts-carousel',
+    'rpi-facts-carousel',
     'basic',
   ];
 
@@ -369,6 +370,7 @@ test.describe('Screenshot Capture for PR Validation', () => {
     'facts-columns',
     'facts-overlay',
     'facts-carousel',
+    'rpi-facts-carousel',
     'basic',
   ];
 
@@ -561,6 +563,7 @@ test.describe('Matrix', () => {
     'facts-columns',
     'facts-overlay',
     'facts-carousel',
+    'rpi-facts-carousel',
     'basic',
   ];
 

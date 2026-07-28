@@ -38,6 +38,7 @@ const isConnected = computed(() => screen.value !== null);
 const zones = computed<Zone[]>(() => wsState.value.zones);
 
 function getLayoutDisplayName(layout: LayoutType): string {
+  if (layout === 'rpi-facts-carousel') return 'RPi Facts Carousel';
   return layout.charAt(0).toUpperCase() + layout.slice(1).replace(/-/g, ' ');
 }
 

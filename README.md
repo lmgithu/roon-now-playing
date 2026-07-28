@@ -78,7 +78,7 @@ pnpm dev
 | Parameter | Values | Description |
 |-----------|--------|-------------|
 | `zone` | Zone name or ID | Auto-select zone (e.g., `?zone=Living%20Room`) |
-| `layout` | `detailed`, `minimal`, `fullscreen`, `ambient`, `cover`, `facts-columns`, `facts-overlay`, `facts-carousel`, `basic` | Display layout |
+| `layout` | `detailed`, `minimal`, `fullscreen`, `ambient`, `cover`, `facts-columns`, `facts-overlay`, `facts-carousel`, `rpi-facts-carousel`, `basic` | Display layout |
 | `background` | See [Backgrounds](#backgrounds) section | Background style |
 | `font` | See [Fonts](#fonts) section | Font family |
 
@@ -101,6 +101,7 @@ Example: `http://localhost:3000/?zone=Office&layout=detailed&background=gradient
 | `facts-columns` | Two-column layout with artwork and AI-generated facts about the music. |
 | `facts-overlay` | Full artwork background with facts overlaid at the bottom. |
 | `facts-carousel` | Blurred artwork background with the rotating fact shown as large type, plus a compact now-playing chip. Sized for legibility on TVs. |
+| `rpi-facts-carousel` | Pi 3 / weak-GPU variant: solid tinted background (no CSS blur), sharp cover art beside the progress strip, facts + time remaining. |
 | `basic` | Legacy-compatible layout for older browsers (iOS 12+). Artwork with title, artist, album, and progress bar. Auto-adapts to portrait/landscape. |
 
 **Note:** Facts layouts require an LLM provider configured in the Admin panel. Supported providers: Anthropic, OpenAI, OpenRouter, or Local LLM (Ollama/LM Studio).

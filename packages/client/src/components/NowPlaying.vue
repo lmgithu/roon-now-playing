@@ -10,6 +10,7 @@ import CoverLayout from '../layouts/CoverLayout.vue';
 import FactsColumnsLayout from '../layouts/FactsColumnsLayout.vue';
 import FactsOverlayLayout from '../layouts/FactsOverlayLayout.vue';
 import FactsCarouselLayout from '../layouts/FactsCarouselLayout.vue';
+import RpiFactsCarouselLayout from '../layouts/RpiFactsCarouselLayout.vue';
 import BasicLayout from '../layouts/BasicLayout.vue';
 
 const props = defineProps<{
@@ -50,6 +51,8 @@ const layoutComponent = computed(() => {
       return FactsOverlayLayout;
     case 'facts-carousel':
       return FactsCarouselLayout;
+    case 'rpi-facts-carousel':
+      return RpiFactsCarouselLayout;
     case 'basic':
       return BasicLayout;
     default:
