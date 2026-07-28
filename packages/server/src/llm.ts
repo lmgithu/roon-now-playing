@@ -26,7 +26,7 @@ function getMaxTokens(config: FactsConfig): number {
   return DEFAULT_FACTS_MAX_TOKENS;
 }
 
-/** Strip markdown fences and normalize typographic quotes that break JSON. */
+/** Strip markdown fences and lightly normalize typography. */
 export function normalizeFactsText(text: string): string {
   let content = text.trim();
 
@@ -36,7 +36,9 @@ export function normalizeFactsText(text: string): string {
     content = codeBlockMatch[1].trim();
   }
 
-  // Smart/curly quotes → straight quotes
+  // Curly double quotes → straight (outer JSON delimiters from some models).
+  // Curly apostrophes/singles → ASCII apostrophe so titles like METZ’s stay intact
+  // without introducing extra " boundaries that shatter facts.
   content = content
     .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
     .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
@@ -44,11 +46,15 @@ export function normalizeFactsText(text: string): string {
   return content.trim();
 }
 
+function cleanFact(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
 function tryParseJsonArray(raw: string): string[] | null {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) {
-      return parsed.map((s) => s.trim()).filter((s) => s.length > 0);
+      return parsed.map(cleanFact).filter((s) => s.length > 0);
     }
     // Array of objects with text/fact fields
     if (
@@ -62,7 +68,15 @@ function tryParseJsonArray(raw: string): string[] | null {
       )
     ) {
       return parsed
-        .map((item) => String((item as { fact?: string; text?: string }).fact ?? (item as { text?: string }).text ?? '').trim())
+        .map((item) =>
+          cleanFact(
+            String(
+              (item as { fact?: string; text?: string }).fact ??
+                (item as { text?: string }).text ??
+                ''
+            )
+          )
+        )
         .filter((s) => s.length > 0);
     }
   } catch {
@@ -71,97 +85,201 @@ function tryParseJsonArray(raw: string): string[] | null {
   return null;
 }
 
-/** Soft-repair common near-JSON patterns from LLMs. */
-function repairJsonArrayCandidate(candidate: string): string {
-  let s = candidate.trim();
+/**
+ * Scan a JSON-like string array and extract top-level elements.
+ *
+ * Critical: a `"` only ends an element when the next non-whitespace char is
+ * `,` or `]` (or EOF). Unescaped quotes around song titles mid-fact are kept
+ * inside the element — the old regex fallback split those into extra "facts".
+ *
+ * Example broken input the naive extractor mishandled:
+ *   ["The track "Come Together" was recorded in 1969.", "Second fact."]
+ */
+export function scanJsonStringArray(text: string): string[] {
+  const start = text.indexOf('[');
+  if (start === -1) return [];
 
-  // Close unclosed array
-  if (s.startsWith('[') && !s.endsWith(']')) {
-    // Drop trailing incomplete string fragment after last complete fact
-    const lastComplete = Math.max(s.lastIndexOf('",'), s.lastIndexOf('"\n'));
-    if (lastComplete > 0) {
-      // Keep through last quote that likely ends a string, then close array
-      const upTo = s.lastIndexOf('"');
-      if (upTo > 0) {
-        s = s.slice(0, upTo + 1);
+  const facts: string[] = [];
+  let i = start + 1;
+  const n = text.length;
+
+  const skipWs = (): void => {
+    while (i < n && /\s/.test(text[i]!)) i++;
+  };
+
+  while (i < n) {
+    skipWs();
+    if (i >= n) break;
+    if (text[i] === ']') {
+      i++; // consume closing bracket
+      skipWs();
+      // Support multiple one-element arrays on separate lines: ["a"]\n["b"]
+      if (i < n && text[i] === '[') {
+        i++;
+        continue;
       }
+      break;
     }
-    s = s.replace(/,\s*$/, '');
-    if (!s.endsWith(']')) {
-      s += ']';
+    if (text[i] === ',') {
+      i++;
+      continue;
+    }
+    if (text[i] === '[') {
+      // Nested or next array opener
+      i++;
+      continue;
+    }
+
+    if (text[i] !== '"') {
+      // Skip unexpected tokens (comments, bare words) until quote/comma/bracket
+      i++;
+      continue;
+    }
+
+    // Start of a string element
+    i++; // past opening "
+    let buf = '';
+    let closed = false;
+
+    while (i < n) {
+      const ch = text[i]!;
+
+      if (ch === '\\' && i + 1 < n) {
+        const next = text[i + 1]!;
+        // Common JSON escapes
+        if (next === 'n') buf += '\n';
+        else if (next === 'r') buf += '\r';
+        else if (next === 't') buf += '\t';
+        else if (next === '"' || next === '\\' || next === '/') buf += next;
+        else if (next === 'u' && i + 5 < n) {
+          const hex = text.slice(i + 2, i + 6);
+          if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+            buf += String.fromCharCode(parseInt(hex, 16));
+            i += 6;
+            continue;
+          }
+          buf += next;
+        } else {
+          buf += next;
+        }
+        i += 2;
+        continue;
+      }
+
+      if (ch === '"') {
+        // Lookahead: element terminator vs mid-string song-title quote.
+        // A quote ends the element only when followed (after whitespace) by
+        //   ,  ]  " (next element, missing comma)  or EOF.
+        // Song titles sit mid-sentence: next char is a letter, not a delimiter.
+        let j = i + 1;
+        while (j < n && /\s/.test(text[j]!)) j++;
+        const next = j < n ? text[j]! : '';
+        const endsElement =
+          next === '' || next === ',' || next === ']' || next === '"';
+
+        if (endsElement) {
+          facts.push(cleanFact(buf));
+          // Leave i on the delimiter (or EOF). If next element opens with ",
+          // outer loop will pick it up — do not skip past that quote.
+          i = j;
+          closed = true;
+          break;
+        }
+
+        // Internal unescaped quote (e.g. song title) — keep it
+        buf += '"';
+        i++;
+        continue;
+      }
+
+      buf += ch;
+      i++;
+    }
+
+    if (!closed && buf.trim().length > 0) {
+      // Truncated trailing fact
+      facts.push(cleanFact(buf));
     }
   }
 
-  // Missing commas between string elements: "foo"\n"bar" or "foo" "bar"
-  s = s.replace(/"\s*\n\s*"/g, '",\n"');
-  s = s.replace(/"\s{2,}"/g, '", "');
-
-  // Trailing commas before ]
-  s = s.replace(/,\s*]/g, ']');
-
-  // Semicolon separators sometimes used by models
-  s = s.replace(/"\s*;\s*"/g, '", "');
-
-  return s;
+  return facts.filter((f) => f.length > 0);
 }
 
 /**
- * Extract quoted string literals even when overall JSON is invalid.
- * Handles escaped quotes inside strings.
+ * Fallback for one-fact-per-line arrays that are fully valid on their own line:
+ * ["Fact 1"]
+ * ["Fact 2"]
+ * Does NOT use non-greedy \[.*?\] across a single multi-element array (that
+ * falsely splits on brackets/quotes inside facts).
  */
-function extractQuotedStrings(text: string): string[] {
+function extractPerLineArrays(text: string): string[] {
   const facts: string[] = [];
-  const re = /"((?:[^"\\]|\\.)*)"/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
-    try {
-      // Re-parse as JSON string to resolve escapes
-      const value = JSON.parse(`"${match[1]}"`) as string;
-      const trimmed = value.replace(/\s+/g, ' ').trim();
-      if (trimmed.length > 10) {
-        facts.push(trimmed);
-      }
-    } catch {
-      const trimmed = match[1].replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim();
-      if (trimmed.length > 10) {
-        facts.push(trimmed);
-      }
+  for (const line of text.split(/\n+/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) continue;
+    const parsed = tryParseJsonArray(trimmed) ?? scanJsonStringArray(trimmed);
+    if (parsed.length === 1) {
+      facts.push(parsed[0]!);
+    } else if (parsed.length > 1 && trimmed.indexOf('],[') === -1) {
+      // Single line with a full multi-element array
+      return parsed;
     }
   }
   return facts;
 }
 
 /**
- * Fallback for bracketed lines without proper JSON quoting:
- * [Some fact here]
- * [Another fact]
+ * Bracketed non-JSON lines (no quotes):
+ * [Stone Cold Moron features Colin Hawkins on drums...]
  */
 function extractBracketLines(text: string): string[] {
-  const lines = text.split(/\n+/);
   const facts: string[] = [];
-  for (const line of lines) {
+  for (const line of text.split(/\n+/)) {
     const m = line.trim().match(/^\[\s*(.+?)\s*\]$/);
-    if (m) {
-      let body = m[1].trim();
-      // Strip surrounding quotes if present
-      if ((body.startsWith('"') && body.endsWith('"')) || (body.startsWith("'") && body.endsWith("'"))) {
-        body = body.slice(1, -1);
-      }
-      body = body.replace(/\s+/g, ' ').trim();
-      if (body.length > 10 && !body.startsWith('{')) {
-        facts.push(body);
-      }
+    if (!m) continue;
+    let body = m[1]!.trim();
+    if (
+      (body.startsWith('"') && body.endsWith('"')) ||
+      (body.startsWith("'") && body.endsWith("'"))
+    ) {
+      body = body.slice(1, -1);
+    }
+    body = cleanFact(body);
+    // Must look like a sentence, not a short title fragment
+    if (body.length >= 24 && !body.startsWith('{')) {
+      facts.push(body);
     }
   }
   return facts;
+}
+
+function finalizeFacts(facts: string[], maxFacts?: number): string[] {
+  let out = facts.map(cleanFact).filter((f) => f.length > 0);
+
+  // Only when over-count: drop short title-like fragments (the old bug mode),
+  // then cap to maxFacts. Never strip short-but-valid facts when count is fine.
+  if (maxFacts && out.length > maxFacts) {
+    const sentences = out.filter((f) => f.length >= 40 || /[.!?…]["']?$/.test(f));
+    if (sentences.length >= Math.min(maxFacts, 2)) {
+      out = sentences;
+    } else {
+      // Prefer longer strings over bare titles
+      out = [...out].sort((a, b) => b.length - a.length);
+    }
+    out = out.slice(0, maxFacts);
+  }
+
+  return out;
 }
 
 /**
  * Parse LLM output into a list of fact strings.
- * Tolerates markdown fences, smart quotes, truncated arrays, missing commas,
- * multi-array line formats, and non-JSON bracketed lines.
+ *
+ * Prefer strict JSON, then a top-level string-array scanner that keeps
+ * mid-fact quotes (song titles) intact. Never use "match every quoted
+ * substring" — that is what produced 9+ fragments for 5 facts.
  */
-export function parseFactsResponse(text: string): string[] {
+export function parseFactsResponse(text: string, maxFacts?: number): string[] {
   if (!text || !text.trim()) {
     logger.warn('[ParseFacts] Empty response content');
     return [];
@@ -169,81 +287,41 @@ export function parseFactsResponse(text: string): string[] {
 
   const content = normalizeFactsText(text);
 
-  // Strategy 1: Whole response is a JSON array
+  // Strategy 1: strict JSON
   let parsed = tryParseJsonArray(content);
   if (parsed && parsed.length > 0) {
-    return parsed;
+    return finalizeFacts(parsed, maxFacts);
   }
 
-  // Strategy 2: Extract first [...] slice (non-greedy via balanced-ish match)
-  const arrayMatch = content.match(/\[[\s\S]*\]/);
-  if (arrayMatch) {
-    parsed = tryParseJsonArray(arrayMatch[0]);
-    if (parsed && parsed.length > 0) {
-      return parsed;
-    }
-
-    const repaired = repairJsonArrayCandidate(arrayMatch[0]);
-    parsed = tryParseJsonArray(repaired);
-    if (parsed && parsed.length > 0) {
-      logger.info(`[ParseFacts] Parsed ${parsed.length} facts after JSON repair`);
-      return parsed;
-    }
+  // Strategy 2: top-level scanner on whole text / first array region
+  const scanned = scanJsonStringArray(content);
+  if (scanned.length > 0) {
+    logger.info(`[ParseFacts] Scanned ${scanned.length} facts from near-JSON array`);
+    return finalizeFacts(scanned, maxFacts);
   }
 
-  // Strategy 3: Truncated array without closing ]
-  const openIdx = content.indexOf('[');
-  if (openIdx !== -1) {
-    const repaired = repairJsonArrayCandidate(content.slice(openIdx));
-    parsed = tryParseJsonArray(repaired);
-    if (parsed && parsed.length > 0) {
-      logger.info(`[ParseFacts] Parsed ${parsed.length} facts from truncated array`);
-      return parsed;
-    }
+  // Strategy 3: one JSON array per line
+  const perLine = extractPerLineArrays(content);
+  if (perLine.length > 0) {
+    logger.info(`[ParseFacts] Parsed ${perLine.length} facts from per-line arrays`);
+    return finalizeFacts(perLine, maxFacts);
   }
 
-  // Strategy 4: Multiple single-element arrays on separate lines: ["Fact 1"]\n["Fact 2"]
-  try {
-    const lineArrays = content.match(/\[[\s\S]*?\]/g);
-    if (lineArrays && lineArrays.length > 1) {
-      const facts: string[] = [];
-      for (const arr of lineArrays) {
-        const items = tryParseJsonArray(arr) ?? tryParseJsonArray(repairJsonArrayCandidate(arr));
-        if (items) {
-          facts.push(...items);
-        }
-      }
-      if (facts.length > 0) {
-        logger.info(`[ParseFacts] Parsed ${facts.length} facts from multi-array format`);
-        return facts;
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // Strategy 5: Pull all double-quoted strings
-  const quoted = extractQuotedStrings(content);
-  if (quoted.length > 0) {
-    logger.info(`[ParseFacts] Extracted ${quoted.length} facts from quoted strings`);
-    return quoted;
-  }
-
-  // Strategy 6: Bracketed non-JSON lines
+  // Strategy 4: bracketed prose lines
   const brackets = extractBracketLines(content);
   if (brackets.length > 0) {
     logger.info(`[ParseFacts] Extracted ${brackets.length} facts from bracket lines`);
-    return brackets;
+    return finalizeFacts(brackets, maxFacts);
   }
 
-  // Strategy 7: Numbered / bulleted list
+  // Strategy 5: numbered / bulleted list
   const listFacts = content
     .split(/\n+/)
     .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim())
-    .filter((line) => line.length > 20 && !line.startsWith('{') && !line.startsWith('['));
+    .filter((line) => line.length >= 24 && !line.startsWith('{') && !line.startsWith('['));
   if (listFacts.length >= 2) {
     logger.info(`[ParseFacts] Extracted ${listFacts.length} facts from list format`);
-    return listFacts;
+    return finalizeFacts(listFacts, maxFacts);
   }
 
   const preview = content.length > 500 ? content.substring(0, 500) + '...' : content;
@@ -340,7 +418,7 @@ export class AnthropicProvider implements LLMProvider {
 
       const textContent = response.content.find((c) => c.type === 'text');
       if (textContent && textContent.type === 'text') {
-        return parseFactsResponse(textContent.text);
+        return parseFactsResponse(textContent.text, this.config.factsCount);
       }
     } catch (error) {
       logger.error(`Anthropic API error: ${error}`);
@@ -379,7 +457,7 @@ export class OpenAIProvider implements LLMProvider {
 
       const content = response.choices[0]?.message?.content;
       if (content) {
-        return parseFactsResponse(content);
+        return parseFactsResponse(content, this.config.factsCount);
       }
     } catch (error) {
       logger.error(`OpenAI API error: ${error}`);
@@ -429,7 +507,7 @@ export class OpenRouterProvider implements LLMProvider {
       const data = await response.json();
       const content = extractChatCompletionContent(data);
       if (content) {
-        return parseFactsResponse(content);
+        return parseFactsResponse(content, this.config.factsCount);
       }
       logger.warn(`[OpenRouter] No content in response: ${JSON.stringify(data).slice(0, 500)}`);
     } catch (error) {
@@ -497,7 +575,7 @@ export class LocalLLMProvider implements LLMProvider {
 
       if (content) {
         logger.info(`[LocalLLM] Got response content (${content.length} chars)`);
-        return parseFactsResponse(content);
+        return parseFactsResponse(content, this.config.factsCount);
       }
 
       const rawPreview = JSON.stringify(data, null, 2);

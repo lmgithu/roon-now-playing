@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.2] - 2026-07-28
+
+### Fixed
+
+- **Facts split on song titles**: Near-JSON responses with unescaped quotes around track names (e.g. `"The track "Come Together" was…"`) no longer explode into extra fragments (5 facts → 9). Replaced naive “every quoted substring” extraction with a top-level array scanner that only ends an element at `",` / `"]` / next-element `"`. Caps output to configured `factsCount`.
+
 ## [1.9.1] - 2026-07-28
 
 ### Fixed
