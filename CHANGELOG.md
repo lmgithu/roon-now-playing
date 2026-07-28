@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.1] - 2026-07-28
+
+### Fixed
+
+- **Facts parsing reliability**: Much more tolerant JSON parsing for LLM responses — handles truncated arrays, smart quotes, missing commas, markdown fences, multi-array line formats, thinking-model `reasoning` fields (DeepSeek / OpenRouter), and non-JSON bracketed lines. Addresses intermittent empty-facts / black-screen issues (upstream #14).
+- **Token limit for non-English facts**: Default max completion tokens raised from hardcoded `1024` to `4096`, and exposed as configurable **Max Tokens** in Admin → Facts → Advanced Settings (upstream #16).
+- **Local LLM without API key**: `POST /api/facts` no longer requires an API key when provider is `local` (test endpoint already allowed this).
+- **Empty-facts client handling**: Server returns `502` with a clear error for empty generations; client no longer assigns `undefined` to the facts list.
+
+### Changed
+
+- **Facts cache TTL**: Default extended from 72 hours to **30 days** (override with `FACTS_CACHE_TTL_HOURS`; `0` = never expire). Reduces slow re-generation of the same tracks.
+- **Concurrent request coalescing**: Multiple displays/zones requesting facts for the same track share one in-flight LLM call.
+- **LLM request timeout**: 60s timeout on OpenRouter / local fetch calls so hung requests cannot block the UI forever.
+- **Faster track debounce**: Client facts fetch debounce reduced from 500ms to 300ms.
+- Debounced disk writes for the facts cache to avoid blocking when caching many tracks.
+
 ## [1.9.0] - 2026-06-17
 
 ### Added

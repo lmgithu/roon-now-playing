@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   roon-now-playing:
-    image: ghcr.io/arthursoares/roon-now-playing:latest
+    # LMGT fork with improved facts reliability (or use arthursoares/roon-now-playing:latest for upstream)
+    image: ghcr.io/lmgithu/roon-now-playing:1.9.1
     container_name: roon-now-playing
     restart: unless-stopped
     ports:
@@ -17,11 +18,14 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
       - LOG_LEVEL=info
+      # Facts cache TTL hours (default 720 = 30 days; 0 = never expire)
+      - FACTS_CACHE_TTL_HOURS=720
       # Set to 'false' to disable Roon and run in external-sources-only mode
       # - ROON_ENABLED=false
       # Optional: API keys for AI-powered facts layouts
       # - ANTHROPIC_API_KEY=sk-ant-...
       # - OPENAI_API_KEY=sk-...
+      # - OPENROUTER_API_KEY=sk-or-...
     # Use host network for Roon discovery (alternative to port mapping)
     # network_mode: host
 

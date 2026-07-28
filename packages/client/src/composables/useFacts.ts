@@ -1,7 +1,7 @@
 import { ref, computed, watch, onUnmounted, type Ref, type ComputedRef } from 'vue';
 import type { Track, PlaybackState, FactsResponse, FactsError } from '@roon-screen-cover/shared';
 
-const DEBOUNCE_DELAY = 500;
+const DEBOUNCE_DELAY = 300;
 const DEFAULT_ROTATION_INTERVAL = 25; // seconds, can be overridden by server config
 
 interface CachedFacts {
@@ -17,7 +17,10 @@ function getFromSessionStorage(key: string): CachedFacts | null {
   try {
     const cached = sessionStorage.getItem(key);
     if (cached) {
-      return JSON.parse(cached) as CachedFacts;
+      const data = JSON.parse(cached) as CachedFacts;
+      if (Array.isArray(data.facts) && data.facts.length > 0) {
+        return data;
+      }
     }
   } catch {
     // Ignore parse errors
@@ -55,6 +58,8 @@ export function useFacts(
 
   let debounceTimer: number | null = null;
   let rotationTimer: number | null = null;
+  let abortController: AbortController | null = null;
+  let requestSeq = 0;
 
   // Fetch rotation interval from server config (immediately on composable init)
   fetch('/api/facts/config')
@@ -132,6 +137,14 @@ export function useFacts(
       return;
     }
 
+    // Abort any previous in-flight request (track changed)
+    if (abortController) {
+      abortController.abort();
+    }
+    abortController = new AbortController();
+    const seq = ++requestSeq;
+    const signal = abortController.signal;
+
     isLoading.value = true;
     error.value = null;
 
@@ -144,37 +157,69 @@ export function useFacts(
           album: trackData.album,
           title: trackData.title,
         }),
+        signal,
       });
+
+      // Stale response from a superseded request
+      if (seq !== requestSeq) {
+        return;
+      }
 
       const data = await response.json();
 
+      if (seq !== requestSeq) {
+        return;
+      }
+
       if (!response.ok) {
-        error.value = data.error as FactsError;
+        error.value = (data.error as FactsError) ?? {
+          type: 'api-error',
+          message: `HTTP ${response.status}`,
+        };
+        facts.value = Array.isArray(data.facts) ? data.facts : [];
+        return;
+      }
+
+      // Guard against malformed success payloads (missing facts array)
+      const factsResponse = data as FactsResponse & { error?: FactsError };
+      const list = Array.isArray(factsResponse.facts) ? factsResponse.facts : [];
+
+      if (list.length === 0) {
+        error.value = factsResponse.error ?? {
+          type: 'empty',
+          message: 'No facts generated',
+        };
         facts.value = [];
         return;
       }
 
-      const factsResponse = data as FactsResponse;
-      facts.value = factsResponse.facts;
-      cached.value = factsResponse.cached;
+      facts.value = list;
+      cached.value = !!factsResponse.cached;
       error.value = null;
 
-      // Cache in sessionStorage
       saveToSessionStorage(cacheKey, {
-        facts: factsResponse.facts,
-        generatedAt: factsResponse.generatedAt,
+        facts: list,
+        generatedAt: factsResponse.generatedAt ?? Date.now(),
       });
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      if (seq !== requestSeq) {
+        return;
+      }
       error.value = {
         type: 'api-error',
         message: err instanceof Error ? err.message : 'Unknown error',
       };
       facts.value = [];
     } finally {
-      isLoading.value = false;
-      // Schedule rotation AFTER loading is complete, so first fact gets full display time
-      if (facts.value.length > 1 && playbackState.value === 'playing') {
-        scheduleNextRotation();
+      if (seq === requestSeq) {
+        isLoading.value = false;
+        // Schedule rotation AFTER loading is complete, so first fact gets full display time
+        if (facts.value.length > 1 && playbackState.value === 'playing') {
+          scheduleNextRotation();
+        }
       }
     }
   }
@@ -204,6 +249,10 @@ export function useFacts(
         currentFactIndex.value = 0;
         cached.value = false;
         error.value = null;
+        if (abortController) {
+          abortController.abort();
+          abortController = null;
+        }
       }
 
       if (!newTrack) {
@@ -230,13 +279,12 @@ export function useFacts(
     }
   );
 
-  // Note: We don't watch `facts` directly for rotation scheduling.
-  // Rotation is scheduled explicitly after facts load (in fetchFacts)
-  // to ensure the first fact gets its full display time.
-
   onUnmounted(() => {
     clearDebounceTimer();
     clearRotationTimer();
+    if (abortController) {
+      abortController.abort();
+    }
   });
 
   return {

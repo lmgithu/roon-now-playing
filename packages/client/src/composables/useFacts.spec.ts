@@ -181,19 +181,23 @@ describe('useFacts', () => {
       track.value = createMockTrack();
       await nextTick();
 
-      // Advance past debounce delay (500ms)
-      await vi.advanceTimersByTimeAsync(500);
+      // Advance past debounce delay (300ms)
+      await vi.advanceTimersByTimeAsync(300);
 
       // Should have called config endpoint + facts endpoint
-      expect(fetch).toHaveBeenCalledWith('/api/facts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          artist: 'Test Artist',
-          album: 'Test Album',
-          title: 'Test Song',
-        }),
-      });
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/facts',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            artist: 'Test Artist',
+            album: 'Test Album',
+            title: 'Test Song',
+          }),
+          signal: expect.any(AbortSignal),
+        })
+      );
 
       // Wait for fetch to complete
       await nextTick();
@@ -231,7 +235,7 @@ describe('useFacts', () => {
       await nextTick();
 
       // Advance past debounce
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
 
       expect(isLoading.value).toBe(true);
 
@@ -261,7 +265,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(cached.value).toBe(true);
@@ -317,7 +321,7 @@ describe('useFacts', () => {
       expect(factsCallCount).toBe(0);
 
       // Advance past debounce
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       // Only one facts fetch for the last track
@@ -362,7 +366,7 @@ describe('useFacts', () => {
       await nextTick();
 
       // Initial facts fetch
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(factsCallCount).toBe(1);
@@ -370,7 +374,7 @@ describe('useFacts', () => {
       // Track becomes null
       track.value = null;
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
 
       // No additional facts fetch
       expect(factsCallCount).toBe(1);
@@ -392,7 +396,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       const cacheKey = 'facts::test artist::test album::test song';
@@ -444,7 +448,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       // Should not call facts API (used cache)
@@ -468,7 +472,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(error.value).toEqual({
@@ -503,7 +507,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(error.value).toEqual({
@@ -523,7 +527,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack({ title: 'Song 1' });
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(error.value).not.toBeNull();
@@ -537,7 +541,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack({ title: 'Song 2' });
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(error.value).toBeNull();
@@ -560,7 +564,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(currentFactIndex.value).toBe(0);
@@ -582,7 +586,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(currentFactIndex.value).toBe(0);
@@ -612,7 +616,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(currentFactIndex.value).toBe(0);
@@ -643,7 +647,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       // Pause
@@ -676,7 +680,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       // First rotation
@@ -717,7 +721,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack();
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       // Should use default interval of 25 seconds
@@ -746,7 +750,7 @@ describe('useFacts', () => {
 
       track.value = createMockTrack({ title: 'Song 1' });
       await nextTick();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(facts.value).toEqual(['Fact for Song 1']);
@@ -765,7 +769,7 @@ describe('useFacts', () => {
       expect(facts.value).toEqual([]);
       expect(currentFactIndex.value).toBe(0);
 
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(300);
       await nextTick();
 
       expect(facts.value).toEqual(['Fact for Song 2']);

@@ -10,6 +10,7 @@ import {
   LLM_PROVIDERS,
   LLM_MODELS,
   DEFAULT_FACTS_PROMPT,
+  DEFAULT_FACTS_MAX_TOKENS,
   type LayoutType,
   type FontType,
   type BackgroundType,
@@ -35,6 +36,7 @@ const factsConfig = ref<FactsConfig>({
   rotationInterval: 25,
   prompt: DEFAULT_FACTS_PROMPT,
   localBaseUrl: 'http://localhost:11434/v1',
+  maxTokens: DEFAULT_FACTS_MAX_TOKENS,
 });
 const factsConfigLoading = ref(true);
 const factsConfigSaving = ref(false);
@@ -321,6 +323,7 @@ function resetFactsConfig(): void {
     rotationInterval: 25,
     prompt: DEFAULT_FACTS_PROMPT,
     localBaseUrl: 'http://localhost:11434/v1',
+    maxTokens: DEFAULT_FACTS_MAX_TOKENS,
   };
 }
 
@@ -982,6 +985,24 @@ onMounted(() => {
               </button>
 
               <div v-if="showAdvanced" class="card-content">
+                <div class="form-field">
+                  <label for="maxTokens">
+                    Max Tokens
+                    <span class="label-hint">Raise for non-English or longer facts (default {{ DEFAULT_FACTS_MAX_TOKENS }})</span>
+                  </label>
+                  <div class="number-input">
+                    <input
+                      id="maxTokens"
+                      type="number"
+                      v-model.number="factsConfig.maxTokens"
+                      min="256"
+                      max="32768"
+                      step="256"
+                    />
+                    <span class="number-hint">tokens</span>
+                  </div>
+                </div>
+
                 <div class="form-field full-width">
                   <label for="prompt">Custom Prompt Template</label>
                   <textarea

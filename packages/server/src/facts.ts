@@ -10,6 +10,39 @@ export function createFactsRouter(): Router {
   const configStore = new FactsConfigStore();
   const cache = new FactsCache();
 
+  // Coalesce concurrent LLM requests for the same track (multi-display / multi-zone)
+  const inflight = new Map<string, Promise<string[]>>();
+
+  function trackKey(artist: string, album: string, title: string): string {
+    return `${artist.toLowerCase()}::${album.toLowerCase()}::${title.toLowerCase()}`;
+  }
+
+  async function generateAndCache(artist: string, album: string, title: string): Promise<string[]> {
+    const key = trackKey(artist, album, title);
+    const existing = inflight.get(key);
+    if (existing) {
+      logger.info(`[Facts] Joining in-flight request for ${artist} — ${title}`);
+      return existing;
+    }
+
+    const promise = (async () => {
+      const config = configStore.get();
+      const provider = createLLMProvider(config);
+      const facts = await provider.generateFacts(artist, album, title);
+      if (facts.length > 0) {
+        cache.set(artist, album, title, facts);
+      }
+      return facts;
+    })();
+
+    inflight.set(key, promise);
+    try {
+      return await promise;
+    } finally {
+      inflight.delete(key);
+    }
+  }
+
   // Get facts for a track
   router.post('/facts', async (req, res) => {
     const { artist, album, title } = req.body as FactsRequest;
@@ -21,16 +54,17 @@ export function createFactsRouter(): Router {
 
     const config = configStore.get();
 
-    if (!config.apiKey) {
+    // Local LLM does not require an API key; cloud providers do
+    if (!configStore.isConfigured()) {
       res.status(503).json({
-        error: { type: 'no-key', message: 'No API key configured' },
+        error: { type: 'no-key', message: config.provider === 'local' ? 'Local LLM model not configured' : 'No API key configured' },
       });
       return;
     }
 
     // Check cache first
     const cached = cache.get(artist, album, title);
-    if (cached) {
+    if (cached && cached.length > 0) {
       const timestamp = cache.getTimestamp(artist, album, title);
       const response: FactsResponse = {
         facts: cached,
@@ -41,20 +75,22 @@ export function createFactsRouter(): Router {
       return;
     }
 
-    // Generate new facts
+    // Generate new facts (coalesced)
     try {
-      const provider = createLLMProvider(config);
-      const facts = await provider.generateFacts(artist, album, title);
+      const start = Date.now();
+      const facts = await generateAndCache(artist, album, title);
+      logger.info(`[Facts] Generated ${facts.length} facts for ${artist} — ${title} in ${Date.now() - start}ms`);
 
       if (facts.length === 0) {
-        res.status(200).json({
+        // Use 502 so clients treat this as failure (not success with undefined facts)
+        res.status(502).json({
           error: { type: 'empty', message: 'No facts generated' },
+          facts: [],
+          cached: false,
+          generatedAt: Date.now(),
         });
         return;
       }
-
-      // Cache the result
-      cache.set(artist, album, title, facts);
 
       const response: FactsResponse = {
         facts,
@@ -65,7 +101,7 @@ export function createFactsRouter(): Router {
     } catch (error) {
       logger.error(`Failed to generate facts: ${error}`);
       res.status(500).json({
-        error: { type: 'api-error', message: 'Failed to generate facts' },
+        error: { type: 'api-error', message: error instanceof Error ? error.message : 'Failed to generate facts' },
       });
     }
   });
@@ -78,6 +114,7 @@ export function createFactsRouter(): Router {
       ...config,
       apiKey: config.apiKey ? '••••••••' + config.apiKey.slice(-4) : '',
       hasApiKey: !!config.apiKey,
+      isConfigured: configStore.isConfigured(),
     });
   });
 
@@ -106,27 +143,29 @@ export function createFactsRouter(): Router {
 
     const config = configStore.get();
 
-    // API key is required for cloud providers, but optional for local LLM
-    if (!config.apiKey && config.provider !== 'local') {
-      res.status(400).json({ error: 'No API key configured' });
+    if (!configStore.isConfigured()) {
+      res.status(400).json({
+        error: config.provider === 'local' ? 'Local LLM model not configured' : 'No API key configured',
+      });
       return;
     }
 
     const startTime = Date.now();
 
     try {
+      // Bypass cache for tests so config changes are measurable
       const provider = createLLMProvider(config);
       const facts = await provider.generateFacts(artist, album, title);
       const durationMs = Date.now() - startTime;
 
       const response: FactsTestResponse = { facts, durationMs };
 
-      // Add warning if no facts were parsed (likely model output format issue)
       if (facts.length === 0) {
         logger.warn(`Facts test returned 0 facts - model may not be returning valid JSON array. Check server logs for details.`);
         res.json({
           ...response,
-          warning: 'Model returned content but no facts could be parsed. The model may not be following the JSON array format. Check server logs for raw response.'
+          warning:
+            'Model returned content but no facts could be parsed. The model may not be following the JSON array format. Check server logs for raw response.',
         });
         return;
       }

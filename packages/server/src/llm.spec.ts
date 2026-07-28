@@ -25,6 +25,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createLLMProvider, AnthropicProvider, OpenAIProvider, OpenRouterProvider, LocalLLMProvider } from './llm.js';
 import type { FactsConfig } from '@roon-screen-cover/shared';
+import { DEFAULT_FACTS_MAX_TOKENS } from '@roon-screen-cover/shared';
 
 // Add mock for global fetch at the top level
 const mockFetch = vi.fn();
@@ -65,6 +66,7 @@ describe('LLM Providers', () => {
     factsCount: 5,
     rotationInterval: 25,
     prompt: 'Generate {factsCount} facts about {artist} - {title} from {album}',
+    maxTokens: DEFAULT_FACTS_MAX_TOKENS,
   };
 
   describe('createLLMProvider', () => {
@@ -121,6 +123,7 @@ describe('LLM Providers', () => {
         ...baseConfig,
         provider: 'openrouter' as const,
         model: 'meta-llama/llama-3.1-70b-instruct',
+        maxTokens: 2048,
       };
       const provider = new OpenRouterProvider(config);
       const facts = await provider.generateFacts('Artist', 'Album', 'Title');
@@ -136,7 +139,26 @@ describe('LLM Providers', () => {
           }),
         })
       );
+      const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.max_tokens).toBe(2048);
       expect(facts).toEqual(['Fact from OpenRouter']);
+    });
+
+    it('should parse facts from reasoning field on thinking models', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '', reasoning: '["DeepSeek reasoned fact about the track."]' } }],
+        }),
+      });
+
+      const provider = new OpenRouterProvider({
+        ...baseConfig,
+        provider: 'openrouter',
+        model: 'deepseek/deepseek-v4-flash',
+      });
+      const facts = await provider.generateFacts('Artist', 'Album', 'Title');
+      expect(facts).toEqual(['DeepSeek reasoned fact about the track.']);
     });
   });
 

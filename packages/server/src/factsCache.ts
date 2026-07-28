@@ -4,7 +4,25 @@ import { logger } from './logger.js';
 
 const DATA_DIR = process.env.DATA_DIR || './config';
 const DEFAULT_CACHE_PATH = path.join(DATA_DIR, 'facts-cache.json');
-const TTL_MS = 72 * 60 * 60 * 1000; // 72 hours
+
+// Default 30 days — music facts rarely change; short TTL caused needless re-generation lag.
+// Override with FACTS_CACHE_TTL_HOURS (set to 0 for never-expire).
+function resolveTtlMs(): number {
+  const raw = process.env.FACTS_CACHE_TTL_HOURS;
+  if (raw === undefined || raw === '') {
+    return 30 * 24 * 60 * 60 * 1000;
+  }
+  const hours = Number(raw);
+  if (!Number.isFinite(hours) || hours < 0) {
+    return 30 * 24 * 60 * 60 * 1000;
+  }
+  if (hours === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return hours * 60 * 60 * 1000;
+}
+
+const TTL_MS = resolveTtlMs();
 
 interface CacheEntry {
   facts: string[];
@@ -14,6 +32,7 @@ interface CacheEntry {
 export class FactsCache {
   private cache: Map<string, CacheEntry> = new Map();
   private cachePath: string;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(cachePath: string = DEFAULT_CACHE_PATH) {
     this.cachePath = cachePath;
@@ -50,16 +69,27 @@ export class FactsCache {
     }
   }
 
+  /** Debounce disk writes when many tracks are cached in a burst. */
+  private scheduleSave(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+    }
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      this.save();
+    }, 250);
+  }
+
   get(artist: string, album: string, title: string): string[] | null {
     const key = this.makeKey(artist, album, title);
     const entry = this.cache.get(key);
 
     if (!entry) return null;
 
-    // Check TTL
-    if (Date.now() - entry.timestamp > TTL_MS) {
+    // Check TTL (skipped when FACTS_CACHE_TTL_HOURS=0)
+    if (Number.isFinite(TTL_MS) && Date.now() - entry.timestamp > TTL_MS) {
       this.cache.delete(key);
-      this.save();
+      this.scheduleSave();
       return null;
     }
 
@@ -72,12 +102,21 @@ export class FactsCache {
       facts,
       timestamp: Date.now(),
     });
-    this.save();
+    this.scheduleSave();
   }
 
   getTimestamp(artist: string, album: string, title: string): number | null {
     const key = this.makeKey(artist, album, title);
     const entry = this.cache.get(key);
     return entry?.timestamp ?? null;
+  }
+
+  /** Flush pending debounced writes (useful in tests). */
+  flush(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+      this.save();
+    }
   }
 }

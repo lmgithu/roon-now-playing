@@ -33,7 +33,7 @@ import path from 'path';
 import { FactsCache } from './factsCache.js';
 
 const TEST_CACHE_PATH = path.join(process.cwd(), 'test-facts-cache.json');
-const TTL_MS = 72 * 60 * 60 * 1000; // 72 hours
+const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (default)
 
 describe('FactsCache', () => {
   let cache: FactsCache;
@@ -60,6 +60,7 @@ describe('FactsCache', () => {
   it('should store and retrieve facts', () => {
     const facts = ['Fact 1', 'Fact 2'];
     cache.set('Artist', 'Album', 'Title', facts);
+    cache.flush();
 
     const result = cache.get('Artist', 'Album', 'Title');
     expect(result).toEqual(facts);
@@ -76,6 +77,7 @@ describe('FactsCache', () => {
   it('should persist to disk', () => {
     const facts = ['Persisted fact'];
     cache.set('Artist', 'Album', 'Title', facts);
+    cache.flush();
 
     // Create new instance to test persistence
     const cache2 = new FactsCache(TEST_CACHE_PATH);

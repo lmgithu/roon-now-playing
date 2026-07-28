@@ -106,6 +106,24 @@ describe('FactsConfigStore', () => {
     expect(DEFAULT_CONFIG.factsCount).toBe(5);
     expect(DEFAULT_CONFIG.rotationInterval).toBe(25);
     expect(DEFAULT_CONFIG.prompt).toContain('Generate');
+    expect(DEFAULT_CONFIG.maxTokens).toBe(4096);
+  });
+
+  it('should persist and clamp maxTokens', () => {
+    store.update({ maxTokens: 8192 });
+    expect(store.get().maxTokens).toBe(8192);
+
+    store.update({ maxTokens: 10 }); // too low → default
+    expect(store.get().maxTokens).toBe(4096);
+  });
+
+  it('should consider local provider configured without API key', () => {
+    store.update({ provider: 'local', model: 'llama3.1', apiKey: '' });
+    expect(store.isConfigured()).toBe(true);
+
+    store.update({ provider: 'openrouter', apiKey: '' });
+    delete process.env.OPENROUTER_API_KEY;
+    expect(store.isConfigured()).toBe(false);
   });
 
   it('should reject API key updates containing non-ASCII characters', () => {

@@ -151,6 +151,8 @@ export interface FactsConfig {
   rotationInterval: number;
   prompt: string;
   localBaseUrl?: string; // Only used for 'local' provider
+  /** Max completion tokens for LLM responses. Default 4096 (raised for non-English prompts). */
+  maxTokens?: number;
 }
 
 // Facts API types
@@ -184,6 +186,9 @@ export interface FactsError {
   message: string;
 }
 
+/** Default max completion tokens for facts generation (supports longer non-English facts). */
+export const DEFAULT_FACTS_MAX_TOKENS = 4096;
+
 // Default prompt template
 export const DEFAULT_FACTS_PROMPT = `Generate {factsCount} interesting, lesser-known facts about this music:
 
@@ -203,6 +208,7 @@ When possible, include attribution (e.g., "In a 1985 interview..." or "According
 Keep each fact concise (2-3 sentences max). Prioritize surprising or educational information over common knowledge.
 
 IMPORTANT: Return ONLY a valid JSON array of strings with no additional text, markdown, or explanation.
+Do not use curly/smart quotes. Escape any double quotes inside facts. Do not truncate the array.
 
 Example format:
 ["Fact one goes here.", "Fact two goes here.", "Fact three goes here."]`;

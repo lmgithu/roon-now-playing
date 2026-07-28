@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { FactsConfig, LLMProvider } from '@roon-screen-cover/shared';
-import { DEFAULT_FACTS_PROMPT } from '@roon-screen-cover/shared';
+import { DEFAULT_FACTS_PROMPT, DEFAULT_FACTS_MAX_TOKENS } from '@roon-screen-cover/shared';
 import { logger } from './logger.js';
 
 const DATA_DIR = process.env.DATA_DIR || './config';
@@ -16,6 +16,7 @@ export const DEFAULT_CONFIG: FactsConfig = {
   rotationInterval: 25,
   prompt: DEFAULT_FACTS_PROMPT,
   localBaseUrl: DEFAULT_LOCAL_BASE_URL,
+  maxTokens: DEFAULT_FACTS_MAX_TOKENS,
 };
 
 export class FactsConfigStore {
@@ -40,6 +41,16 @@ export class FactsConfigStore {
           logger.warn('Clearing corrupted API key from config');
           this.config.apiKey = '';
           this.save();
+        }
+
+        // Clamp maxTokens if present
+        if (this.config.maxTokens != null) {
+          const n = Number(this.config.maxTokens);
+          if (!Number.isFinite(n) || n < 256) {
+            this.config.maxTokens = DEFAULT_FACTS_MAX_TOKENS;
+          } else {
+            this.config.maxTokens = Math.min(Math.floor(n), 32_768);
+          }
         }
 
         logger.info(`Loaded facts config from ${this.configPath}`);
@@ -95,6 +106,7 @@ export class FactsConfigStore {
       ...this.config,
       apiKey: this.getEffectiveApiKey(),
       localBaseUrl: this.getEffectiveLocalBaseUrl(),
+      maxTokens: this.config.maxTokens ?? DEFAULT_FACTS_MAX_TOKENS,
     };
   }
 
@@ -105,11 +117,29 @@ export class FactsConfigStore {
       delete partial.apiKey;
     }
 
+    if (partial.maxTokens != null) {
+      const n = Number(partial.maxTokens);
+      if (!Number.isFinite(n) || n < 256) {
+        partial.maxTokens = DEFAULT_FACTS_MAX_TOKENS;
+      } else {
+        partial.maxTokens = Math.min(Math.floor(n), 32_768);
+      }
+    }
+
     this.config = { ...this.config, ...partial };
     this.save();
   }
 
   hasApiKey(): boolean {
     return !!this.get().apiKey;
+  }
+
+  /** Cloud providers need a key; local does not. */
+  isConfigured(): boolean {
+    const config = this.get();
+    if (config.provider === 'local') {
+      return !!config.model;
+    }
+    return !!config.apiKey;
   }
 }
