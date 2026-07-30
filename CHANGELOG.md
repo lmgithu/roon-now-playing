@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0] - 2026-07-30
+
+### Changed
+
+- **Major fork release** for Umbrel / always-on displays.
+- **Single layout:** `rpi-facts-carousel` only (other layouts removed).
+- **Color Thief** album theming: Muted for progress/dots/strip text, LightMuted for fact quotes; soft fallbacks only when extraction fails.
+- **Pi-friendly UI:** no full-screen CSS blur, smooth progress (`scaleX`), sequential fact fades, subtitle-style text shadows.
+- **Facts cache** import/export in Admin, longer cache TTL, robust fact JSON parsing, configurable max tokens.
+- Multi-arch Docker images (`linux/amd64` + `linux/arm64`).
+
 All notable changes to this project will be documented in this file.
 
 ## [1.9.23] - 2026-07-30
