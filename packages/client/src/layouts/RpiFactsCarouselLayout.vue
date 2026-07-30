@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
- * RPi Facts Carousel — Facts-carousel information hierarchy, Pi 3–safe rendering.
+ * RPi Facts Carousel — Facts-carousel hierarchy, Pi 3–safe rendering.
  *
- * - No full-screen CSS blur / dual-image crossfades
- * - Album colors via Color Thief (OKLCH + Muted/DarkVibrant swatches)
- * - Now-playing strip (title, zone, progress, time) tinted from the same palette
- * - Accents muted for OLED; neutral/B&W → soft seeded fallbacks
+ * Color roles (Color Thief):
+ * - Progress bar, dots, strip text → Muted (else DarkMuted)
+ * - Hero fact quote → LightMuted
+ * - Pure white (#f2f2f2) only if those swatches are missing / extraction fails
  */
 import { computed, ref, watch, onUnmounted, type CSSProperties } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
@@ -338,17 +338,21 @@ function colorToHsl(c: Color): HSL {
   return { h, s, l };
 }
 
-/**
- * Progress accent: Muted → DarkMuted (all albums).
- * If both missing, use DarkVibrant / first palette color so we rarely fall back to white.
- */
-function pickAccentFromThief(swatches: SwatchMap, palette: Color[]): HSL | null {
+/** Swatch for chrome (bar, dots, strip text): Muted → DarkMuted only. */
+function pickMutedChrome(swatches: SwatchMap): HSL | null {
   if (swatches.Muted) return colorToHsl(swatches.Muted.color);
   if (swatches.DarkMuted) return colorToHsl(swatches.DarkMuted.color);
-  // Swatch classification sometimes leaves soft roles empty — still use Thief data
-  if (swatches.DarkVibrant) return colorToHsl(swatches.DarkVibrant.color);
-  if (swatches.Vibrant) return colorToHsl(swatches.Vibrant.color);
-  if (palette.length > 0) return colorToHsl(palette[0]!);
+  return null;
+}
+
+/** Swatch for large fact quotes: LightMuted (soft album-tinted light). */
+function pickLightMutedQuote(swatches: SwatchMap): HSL | null {
+  if (swatches.LightMuted) return colorToHsl(swatches.LightMuted.color);
+  // Soft fallbacks within Thief before pure white
+  if (swatches.Muted) {
+    const m = colorToHsl(swatches.Muted.color);
+    return { h: m.h, s: clamp(m.s * 0.6, 0, 22), l: clamp(Math.max(m.l, 78), 78, 90) };
+  }
   return null;
 }
 
@@ -372,21 +376,40 @@ function pickBgHues(swatches: SwatchMap, palette: Color[]): { primary: HSL; seco
     }
   }
   if (secondary === primary) {
-    const alt = swatches.Muted?.color ?? swatches.Vibrant?.color ?? swatches.DarkVibrant?.color;
+    const alt = swatches.Muted?.color ?? swatches.LightMuted?.color ?? swatches.DarkVibrant?.color;
     if (alt) secondary = colorToHsl(alt);
   }
   return { primary, secondary };
 }
 
+/** Lift a muted hue into a readable light text color on dark OLED. */
+function asReadableTint(h: number, s: number, l: number, minL: number, maxS: number): HSL {
+  let hh = h;
+  let ss = clamp(s * 0.7, 0, maxS);
+  let ll = clamp(Math.max(l, minL), minL, 92);
+  if (isUnwantedBlueHue(hh, ss) && ss >= 12) {
+    hh = 0;
+    ss = 0;
+    ll = Math.max(minL, 88);
+  }
+  return { h: hh, s: ss, l: ll };
+}
+
+function hslCss(h: number, s: number, l: number, a?: number): string {
+  return hslToString(h, s, l, a);
+}
+
 /**
- * Build dark OLED theme from Color Thief Muted/DarkMuted.
- *
- * IMPORTANT: Color Thief "Muted" is *supposed* to be low-chroma. Do NOT treat
- * low sat as "no color → pure white" — that made every album a white bar.
+ * Color roles (Color Thief):
+ * - Progress bar + dots + strip text → Muted (DarkMuted if Muted missing)
+ * - Fact quote → LightMuted (readable lifted if needed)
+ * - Pure white only if required swatches missing (caller falls back)
  */
 function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme | null {
-  const accentSrc = pickAccentFromThief(swatches, palette);
-  if (!accentSrc) return null;
+  const chromeSrc = pickMutedChrome(swatches);
+  const quoteSrc = pickLightMutedQuote(swatches);
+  // Need at least chrome or quote from Thief; pure failure → null → soft fallback
+  if (!chromeSrc && !quoteSrc) return null;
 
   const { primary, secondary } = pickBgHues(swatches, palette);
 
@@ -400,43 +423,65 @@ function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme
   const bgCenter = hslToString(primary.h, bgS, bgL);
   const bgMid = hslToString(secondary.h, midS, midL);
   const bgEdge = hslToString(secondary.h, edgeS, edgeL);
-
   const midRgb = hslToRgb(secondary.h, midS, midL);
-  const texts = pickReadableText(midRgb);
 
-  // Soften Muted color for OLED — keep its hue (this is the album match)
-  let { h: accentH, s: accentS, l: accentL } = muteAccent(accentSrc.h, accentSrc.s, accentSrc.l);
-
-  // Only replace *vivid* cool-blue with text white — not every low-sat blue-gray
-  if (isUnwantedBlueHue(accentH, accentS) && accentS >= 12) {
-    accentH = 0;
-    accentS = 0;
-    accentL = 56;
+  // --- Chrome: Muted (status bar, dots, title/artist/zone/time) ---
+  const chromeBase = chromeSrc ?? quoteSrc!;
+  let bar = muteAccent(chromeBase.h, chromeBase.s, chromeBase.l);
+  if (isUnwantedBlueHue(bar.h, bar.s) && bar.s >= 12) {
+    bar = { h: 0, s: 0, l: 54 };
+  }
+  let barRgb = hslToRgb(bar.h, bar.s, bar.l);
+  if (getContrastRatio(midRgb, barRgb) < 2.5) {
+    bar = { ...bar, l: Math.min(bar.l + 8, 58) };
   }
 
-  let accentRgb = hslToRgb(accentH, accentS, accentL);
-  if (getContrastRatio(midRgb, accentRgb) < 2.6) {
-    accentL = Math.min(accentL + 6, 58);
-    accentRgb = hslToRgb(accentH, accentS, accentL);
-  }
+  // Strip text: same hue as Muted, lighter for couch distance
+  const titleHsl = asReadableTint(chromeBase.h, chromeBase.s, chromeBase.l, 78, 24);
+  const artistHsl = asReadableTint(chromeBase.h, chromeBase.s * 0.85, chromeBase.l, 72, 20);
+  const metaHsl = asReadableTint(chromeBase.h, chromeBase.s * 0.7, chromeBase.l, 68, 16);
 
-  const accent = hslToString(accentH, accentS, accentL);
-  const accentSoft = hslToString(accentH, accentS, accentL, 0.4);
-  const track = hslToString(accentH, clamp(bgS, 6, 20), clamp(bgL + 12, 14, 24), 0.42);
+  // Ensure strip text contrast on dark field
+  const ensureText = (t: HSL, minRatio: number): HSL => {
+    let cur = { ...t };
+    for (let i = 0; i < 4; i++) {
+      if (getContrastRatio(midRgb, hslToRgb(cur.h, cur.s, cur.l)) >= minRatio) break;
+      cur.l = Math.min(92, cur.l + 5);
+      cur.s = Math.max(0, cur.s * 0.9);
+    }
+    return cur;
+  };
+  const title = ensureText(titleHsl, 4.5);
+  const artist = ensureText(artistHsl, 3.5);
+  const meta = ensureText(metaHsl, 3.0);
+
+  // --- Quote (hero fact): LightMuted ---
+  const qBase = quoteSrc ?? {
+    h: chromeBase.h,
+    s: clamp(chromeBase.s * 0.5, 0, 18),
+    l: 82,
+  };
+  let quote = asReadableTint(qBase.h, qBase.s, qBase.l, 80, 26);
+  quote = ensureText(quote, 4.5);
+
+  const progressFill = hslCss(bar.h, bar.s, bar.l);
+  const progressTrack = hslCss(bar.h, clamp(bar.s, 4, 18), clamp(bgL + 14, 16, 26), 0.4);
+  const dotActive = progressFill;
+  const dot = hslCss(bar.h, bar.s, bar.l, 0.38);
 
   return {
     background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
-    factText: texts.text,
-    factMuted: texts.tertiary,
-    title: texts.text,
-    artist: texts.secondary,
-    meta: texts.tertiary,
-    sep: texts.tertiary,
-    progressTrack: track,
-    progressFill: accent,
-    dot: accentSoft,
-    dotActive: accent,
-    coverRing: hslToString(accentH, clamp(bgS, 6, 24), clamp(bgL + 10, 14, 24), 0.5),
+    factText: hslCss(quote.h, quote.s, quote.l),
+    factMuted: hslCss(quote.h, quote.s, quote.l, 0.72),
+    title: hslCss(title.h, title.s, title.l),
+    artist: hslCss(artist.h, artist.s, artist.l),
+    meta: hslCss(meta.h, meta.s, meta.l),
+    sep: hslCss(meta.h, meta.s, meta.l, 0.5),
+    progressTrack,
+    progressFill,
+    dot,
+    dotActive,
+    coverRing: hslCss(bar.h, clamp(bgS, 6, 22), clamp(bgL + 10, 14, 24), 0.5),
   };
 }
 

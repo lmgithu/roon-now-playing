@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.22] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: Color Thief roles — **Muted** for progress bar, dots, and strip text; **LightMuted** for hero fact quotes. White only when those swatches are unavailable.
+
 ## [1.9.21] - 2026-07-30
 
 ### Fixed
