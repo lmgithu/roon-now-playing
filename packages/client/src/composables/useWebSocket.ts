@@ -92,7 +92,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     const metadata: ClientMetadataMessage = {
       type: 'client_metadata',
       clientId,
-      layout: options.layout?.value || 'detailed',
+      layout: options.layout?.value || 'rpi-facts-carousel',
       font: options.font?.value || 'system',
       background: options.background?.value || 'black',
       zoneId: subscribedZoneId,

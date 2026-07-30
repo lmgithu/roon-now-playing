@@ -30,7 +30,7 @@ describe('usePreferences', () => {
 
   it('should initialize with default layout', () => {
     const { layout } = usePreferences();
-    expect(layout.value).toBe('detailed');
+    expect(layout.value).toBe('rpi-facts-carousel');
   });
 
   it('should load zone from URL param', () => {
@@ -43,23 +43,23 @@ describe('usePreferences', () => {
   });
 
   it('should load layout from URL param', () => {
-    window.history.replaceState({}, '', '/?layout=minimal');
+    window.history.replaceState({}, '', '/?layout=rpi-facts-carousel');
 
     const { layout, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(layout.value).toBe('minimal');
+    expect(layout.value).toBe('rpi-facts-carousel');
   });
 
   it('should fall back to localStorage when no URL params', () => {
     localStorage.setItem('roon-screen-cover:zone', 'Office');
-    localStorage.setItem('roon-screen-cover:layout', 'fullscreen');
+    localStorage.setItem('roon-screen-cover:layout', 'rpi-facts-carousel');
 
     const { preferredZone, layout, loadPreferences } = usePreferences();
     loadPreferences();
 
     expect(preferredZone.value).toBe('Office');
-    expect(layout.value).toBe('fullscreen');
+    expect(layout.value).toBe('rpi-facts-carousel');
   });
 
   it('should save zone preference to localStorage', () => {
@@ -74,10 +74,10 @@ describe('usePreferences', () => {
   it('should save layout preference to localStorage', () => {
     const { saveLayoutPreference, layout } = usePreferences();
 
-    saveLayoutPreference('minimal');
+    saveLayoutPreference('rpi-facts-carousel');
 
-    expect(layout.value).toBe('minimal');
-    expect(localStorage.getItem('roon-screen-cover:layout')).toBe('minimal');
+    expect(layout.value).toBe('rpi-facts-carousel');
+    expect(localStorage.getItem('roon-screen-cover:layout')).toBe('rpi-facts-carousel');
   });
 
   it('should clear zone preference', () => {
@@ -100,17 +100,17 @@ describe('usePreferences', () => {
     const { layout, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(layout.value).toBe('detailed'); // Default
+    expect(layout.value).toBe('rpi-facts-carousel'); // Default
   });
 
   it('should prioritize URL params over localStorage', () => {
-    localStorage.setItem('roon-screen-cover:layout', 'fullscreen');
-    window.history.replaceState({}, '', '/?layout=minimal');
+    localStorage.setItem('roon-screen-cover:layout', 'rpi-facts-carousel');
+    window.history.replaceState({}, '', '/?layout=rpi-facts-carousel');
 
     const { layout, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(layout.value).toBe('minimal');
+    expect(layout.value).toBe('rpi-facts-carousel');
   });
 
   // New background type tests

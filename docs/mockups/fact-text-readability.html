@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RPi fact text readability mockups</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #0a0a0c;
+    color: #e8e8e8;
+    padding: 24px;
+    line-height: 1.35;
+  }
+  h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; }
+  .intro { color: #aaa; font-size: 0.9rem; margin-bottom: 28px; max-width: 720px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    max-width: 960px;
+  }
+  @media (min-width: 900px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+  }
+  .card {
+    border: 1px solid #2a2a32;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #121218;
+  }
+  .label {
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #9aa0a8;
+    border-bottom: 1px solid #2a2a32;
+    background: #16161c;
+  }
+  .label strong { color: #c8cdd4; font-weight: 700; }
+  .label .tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    background: #243018;
+    color: #b4d48a;
+  }
+  .label .tag.current { background: #2a2430; color: #c4b0e0; }
+  .stage {
+    position: relative;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 36px 28px 48px;
+    /* dark radial like RPi layout */
+    background: radial-gradient(ellipse at 26% 88%, hsl(12, 28%, 12%) 0%, hsl(12, 18%, 7%) 48%, hsl(0, 0%, 4%) 100%);
+  }
+  .stage.busy {
+    /* slightly busier mid-tone to stress legibility */
+    background:
+      radial-gradient(ellipse at 70% 30%, hsl(200, 25%, 18%) 0%, transparent 45%),
+      radial-gradient(ellipse at 26% 88%, hsl(12, 28%, 14%) 0%, hsl(0, 0%, 5%) 70%);
+  }
+  .fact {
+    font-size: clamp(1.35rem, 3.2vw, 1.85rem);
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    max-width: 18em;
+    color: #f5f5f5;
+  }
+  /* A — current RPi */
+  .a .fact {
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+  }
+  /* B — classic carousel halo */
+  .b .fact {
+    text-shadow: 0 2px 24px rgba(0, 0, 0, 0.55);
+  }
+  /* C — subtitle stack (recommended TV) */
+  .c .fact {
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.95),
+      0 2px 2px rgba(0, 0, 0, 0.85),
+      0 3px 12px rgba(0, 0, 0, 0.65);
+  }
+  /* D — soft plate + light shadow */
+  .d .fact-wrap {
+    background: rgba(0, 0, 0, 0.42);
+    padding: 1rem 1.35rem;
+    border-radius: 12px;
+    max-width: 20em;
+  }
+  .d .fact {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  }
+  .note {
+    margin-top: 28px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: #16161c;
+    border: 1px solid #2a2a32;
+    font-size: 0.85rem;
+    color: #b0b4bc;
+    max-width: 960px;
+  }
+  .note code { color: #d0d4dc; font-size: 0.8em; }
+</style>
+</head>
+<body>
+  <h1>Fact text on OLED / TV — style comparison</h1>
+  <p class="intro">
+    Same dark RPi-style background and the same sample fact.
+    Only the readability treatment changes. Open this file in a browser (or on the TV) to compare.
+  </p>
+
+  <div class="grid">
+    <div class="card a">
+      <div class="label"><strong>A — Current RPi</strong> <span class="tag current">what you have now</span></div>
+      <div class="stage">
+        <p class="fact">The album was recorded largely live in the studio, capturing a raw intensity that later defined the band’s sound.</p>
+      </div>
+    </div>
+
+    <div class="card b">
+      <div class="label"><strong>B — Classic carousel halo</strong></div>
+      <div class="stage">
+        <p class="fact">The album was recorded largely live in the studio, capturing a raw intensity that later defined the band’s sound.</p>
+      </div>
+    </div>
+
+    <div class="card c">
+      <div class="label"><strong>C — Subtitle stack</strong> <span class="tag">recommended TV</span></div>
+      <div class="stage">
+        <p class="fact">The album was recorded largely live in the studio, capturing a raw intensity that later defined the band’s sound.</p>
+      </div>
+    </div>
+
+    <div class="card d">
+      <div class="label"><strong>D — Soft dark plate</strong> <span class="tag">max readability</span></div>
+      <div class="stage busy">
+        <div class="fact-wrap">
+          <p class="fact">The album was recorded largely live in the studio, capturing a raw intensity that later defined the band’s sound.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Notes</strong><br />
+    <b>A</b> — <code>text-shadow: 0 1px 4px</code> (light, Pi-cheap).<br />
+    <b>B</b> — large soft halo like Facts-carousel (<code>0 2px 24px</code>).<br />
+    <b>C</b> — multi-layer “subtitle” edge + soft glow; still only opacity/shadow, no blur filter on text.<br />
+    <b>D</b> — semi-transparent plate behind the fact; best on busy/tinted backgrounds; slightly more UI chrome.<br /><br />
+    File: <code>docs/mockups/fact-text-readability.html</code>
+  </div>
+</body>
+</html>

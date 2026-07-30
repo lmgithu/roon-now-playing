@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.16] - 2026-07-30
+
+### Changed
+
+- **Layouts**: this fork now ships only `rpi-facts-carousel` (other layouts removed). Default layout updated everywhere.
+
 ## [1.9.15] - 2026-07-30
 
 ### Changed

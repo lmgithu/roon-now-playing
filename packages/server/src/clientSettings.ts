@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { logger } from './logger.js';
-import type { LayoutType, FontType, BackgroundType } from '@roon-screen-cover/shared';
+import { LAYOUTS, DEFAULT_LAYOUT, type LayoutType, type FontType, type BackgroundType } from '@roon-screen-cover/shared';
 
 const DATA_DIR = process.env.DATA_DIR || './config';
 const DEFAULT_FILE = path.join(DATA_DIR, 'client-settings.json');
@@ -29,6 +29,12 @@ export class ClientSettingsStore {
       if (fs.existsSync(this.filePath)) {
         const data = fs.readFileSync(this.filePath, 'utf-8');
         const parsed = JSON.parse(data) as Record<string, ClientSettings>;
+        // Migrate removed layouts (this fork only ships rpi-facts-carousel)
+        for (const settings of Object.values(parsed)) {
+          if (!settings?.layout || !(LAYOUTS as readonly string[]).includes(settings.layout)) {
+            settings.layout = DEFAULT_LAYOUT;
+          }
+        }
         this.settings = new Map(Object.entries(parsed));
         logger.info(`Loaded ${this.settings.size} client settings from ${this.filePath}`);
       }

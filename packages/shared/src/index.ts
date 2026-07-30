@@ -24,20 +24,10 @@ export interface NowPlaying {
   seek_position: number;
 }
 
-// Layout options
-export const LAYOUTS = [
-  'detailed',
-  'minimal',
-  'fullscreen',
-  'ambient',
-  'cover',
-  'facts-columns',
-  'facts-overlay',
-  'facts-carousel',
-  'rpi-facts-carousel',
-  'basic',
-] as const;
+// Layout options — this fork only ships the Pi-optimized facts carousel
+export const LAYOUTS = ['rpi-facts-carousel'] as const;
 export type LayoutType = (typeof LAYOUTS)[number];
+export const DEFAULT_LAYOUT: LayoutType = 'rpi-facts-carousel';
 
 // Font options
 export const FONTS = [

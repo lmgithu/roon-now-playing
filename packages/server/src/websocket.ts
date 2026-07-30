@@ -103,7 +103,7 @@ export class WebSocketManager {
         clientId: '', // Will be set when client sends metadata
         deviceId: '', // Will be set when client sends metadata
         friendlyName: null,
-        layout: 'detailed',
+        layout: 'rpi-facts-carousel',
         font: 'system',
         background: 'black',
         subscribedZoneId: null,

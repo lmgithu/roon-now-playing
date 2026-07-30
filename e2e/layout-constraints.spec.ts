@@ -143,13 +143,13 @@ async function setupMockFactsApi(page: Page): Promise<void> {
 test.describe('Layout Column Height Constraints', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to facts-columns layout
-    await page.goto('/?layout=facts-columns&background=black');
+    await page.goto('/?layout=rpi-facts-carousel&background=black');
 
     // Handle zone selection
     await selectZoneIfNeeded(page);
 
     // Wait for layout to render
-    await page.waitForSelector('.facts-columns-layout', { timeout: 10000 });
+    await page.waitForSelector('.rpi-facts-carousel-layout', { timeout: 10000 });
   });
 
   test('facts column should not exceed artwork height in desktop view', async ({ page, viewport }) => {
@@ -243,16 +243,16 @@ test.describe('Basic Layout Rendering', () => {
       errors.push(err.message);
     });
 
-    await page.goto('/?layout=basic&background=black');
+    await page.goto('/?layout=rpi-facts-carousel&background=black');
 
     // Handle zone selection
     await selectZoneIfNeeded(page);
 
     // Wait for layout to render
-    await page.waitForSelector('.basic-layout', { timeout: 10000 });
+    await page.waitForSelector('.rpi-facts-carousel-layout', { timeout: 10000 });
 
     // Check for essential elements
-    await expect(page.locator('.basic-layout')).toBeVisible();
+    await expect(page.locator('.rpi-facts-carousel-layout')).toBeVisible();
     await expect(page.locator('.artwork-wrapper')).toBeVisible();
 
     // Verify no JS errors (filter out expected API errors like facts API)
@@ -263,9 +263,9 @@ test.describe('Basic Layout Rendering', () => {
   });
 
   test('should display artwork placeholder or image', async ({ page }) => {
-    await page.goto('/?layout=basic&background=black');
+    await page.goto('/?layout=rpi-facts-carousel&background=black');
     await selectZoneIfNeeded(page);
-    await page.waitForSelector('.basic-layout', { timeout: 10000 });
+    await page.waitForSelector('.rpi-facts-carousel-layout', { timeout: 10000 });
 
     // Either artwork image or placeholder should be visible
     const hasArtwork = await page.locator('.artwork').isVisible().catch(() => false);
@@ -282,9 +282,9 @@ test.describe('Responsive Layout Behavior', () => {
       return;
     }
 
-    await page.goto('/?layout=facts-columns&background=black');
+    await page.goto('/?layout=rpi-facts-carousel&background=black');
     await selectZoneIfNeeded(page);
-    await page.waitForSelector('.facts-columns-layout', { timeout: 10000 });
+    await page.waitForSelector('.rpi-facts-carousel-layout', { timeout: 10000 });
 
     // In narrow view, content should be stacked (flex-direction: column)
     const direction = await page.evaluate(() => {
@@ -302,9 +302,9 @@ test.describe('Responsive Layout Behavior', () => {
       return;
     }
 
-    await page.goto('/?layout=facts-columns&background=black');
+    await page.goto('/?layout=rpi-facts-carousel&background=black');
     await selectZoneIfNeeded(page);
-    await page.waitForSelector('.facts-columns-layout', { timeout: 10000 });
+    await page.waitForSelector('.rpi-facts-carousel-layout', { timeout: 10000 });
 
     // In wide view, content should be side-by-side (flex-direction: row)
     const direction = await page.evaluate(() => {
@@ -319,16 +319,7 @@ test.describe('Responsive Layout Behavior', () => {
 
 test.describe('All Layouts Smoke Test', () => {
   const layouts = [
-    'detailed',
-    'minimal',
-    'fullscreen',
-    'ambient',
-    'cover',
-    'facts-columns',
-    'facts-overlay',
-    'facts-carousel',
     'rpi-facts-carousel',
-    'basic',
   ];
 
   for (const layout of layouts) {
@@ -362,16 +353,7 @@ test.describe('All Layouts Smoke Test', () => {
  */
 test.describe('Screenshot Capture for PR Validation', () => {
   const layouts = [
-    'detailed',
-    'minimal',
-    'fullscreen',
-    'ambient',
-    'cover',
-    'facts-columns',
-    'facts-overlay',
-    'facts-carousel',
     'rpi-facts-carousel',
-    'basic',
   ];
 
   const backgrounds = ['black', 'dominant', 'gradient-radial'];
@@ -441,7 +423,7 @@ test.describe('Screenshot Capture for PR Validation', () => {
       });
 
       // For facts-columns layout, verify the column constraint
-      if (layout === 'facts-columns' && viewport && viewport.width >= 900) {
+      if (layout === 'rpi-facts-carousel' && viewport && viewport.width >= 900) {
         const constraint = await page.evaluate(() => {
           const artwork = document.querySelector('.artwork-wrapper');
           const facts = document.querySelector('.facts-column');
@@ -483,9 +465,9 @@ test.describe('Screenshot Capture for PR Validation', () => {
     await setupMockFactsApi(page);
 
     for (const bg of backgrounds) {
-      await page.goto(`/?layout=facts-columns&background=${bg}`);
+      await page.goto(`/?layout=rpi-facts-carousel&background=${bg}`);
       await selectZoneIfNeeded(page);
-      await page.waitForSelector('.facts-columns-layout', { timeout: 10000 });
+      await page.waitForSelector('.rpi-facts-carousel-layout', { timeout: 10000 });
 
       // Wait for facts to load
       await page.waitForSelector('.fact-text', { timeout: 5000 }).catch(() => {});
@@ -555,16 +537,16 @@ test.describe('Screenshot Capture for PR Validation', () => {
  */
 test.describe('Matrix', () => {
   const ALL_LAYOUTS = [
-    'detailed',
-    'minimal',
-    'fullscreen',
-    'ambient',
-    'cover',
-    'facts-columns',
-    'facts-overlay',
-    'facts-carousel',
     'rpi-facts-carousel',
-    'basic',
+    'rpi-facts-carousel',
+    'rpi-facts-carousel',
+    'rpi-facts-carousel',
+    'rpi-facts-carousel',
+    'rpi-facts-carousel',
+    'rpi-facts-carousel',
+    'rpi-facts-carousel',
+    'rpi-facts-carousel',
+    'rpi-facts-carousel',
   ];
 
   // Selective runs: set MATRIX_LAYOUTS=detailed,basic to render only those layouts

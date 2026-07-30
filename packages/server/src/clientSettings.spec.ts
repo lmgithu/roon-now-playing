@@ -17,7 +17,7 @@ describe('ClientSettingsStore', () => {
   it('should persist and retrieve settings', () => {
     const store = new ClientSettingsStore(TEST_FILE);
     const settings = {
-      layout: 'ambient' as const,
+      layout: 'rpi-facts-carousel' as const,
       font: 'inter' as const,
       background: 'gradient-radial' as const,
       zoneId: 'zone-1',
@@ -31,7 +31,7 @@ describe('ClientSettingsStore', () => {
   it('should load from disk on construction', () => {
     const store1 = new ClientSettingsStore(TEST_FILE);
     store1.set('device-1', {
-      layout: 'minimal' as const,
+      layout: 'rpi-facts-carousel' as const,
       font: 'system' as const,
       background: 'black' as const,
       zoneId: null,
@@ -42,13 +42,13 @@ describe('ClientSettingsStore', () => {
     const store2 = new ClientSettingsStore(TEST_FILE);
     const loaded = store2.get('device-1');
     expect(loaded).not.toBeNull();
-    expect(loaded!.layout).toBe('minimal');
+    expect(loaded!.layout).toBe('rpi-facts-carousel');
   });
 
   it('should delete settings', () => {
     const store = new ClientSettingsStore(TEST_FILE);
     store.set('device-1', {
-      layout: 'detailed' as const,
+      layout: 'rpi-facts-carousel' as const,
       font: 'system' as const,
       background: 'black' as const,
       zoneId: null,
