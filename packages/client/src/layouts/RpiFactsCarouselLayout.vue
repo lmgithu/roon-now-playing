@@ -3,17 +3,15 @@
  * RPi Facts Carousel — Facts-carousel information hierarchy, Pi 3–safe rendering.
  *
  * - No full-screen CSS blur / dual-image crossfades
- * - Dark radial gradient from album dominant + secondary hues (hue-bucket extract)
+ * - Album colors via Color Thief (OKLCH + Muted/DarkVibrant swatches)
  * - Now-playing strip (title, zone, progress, time) tinted from the same palette
- * - WCAG-oriented contrast: dark bg + light text; accent for progress/dots
+ * - Accents muted for OLED; neutral/B&W → soft seeded fallbacks
  */
 import { computed, ref, watch, onUnmounted, type CSSProperties } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
+import { getSwatchesSync, getPaletteSync, type Color, type SwatchMap } from 'colorthief';
 import { useFacts } from '../composables/useFacts';
 import {
-  SAMPLE_SIZE,
-  extractDominantColor,
-  extractColorPalette,
   hslToString,
   hslToRgb,
   getContrastRatio,
@@ -331,66 +329,94 @@ function pickReadableText(bg: RGB): { text: string; secondary: string; tertiary:
   };
 }
 
+function colorToHsl(c: Color): HSL {
+  const { h, s, l } = c.hsl();
+  return { h, s, l };
+}
+
 /**
- * Pick the most chromatic palette swatch for accents.
- * Dark covers often yield a low-sat "dominant"; reds/etc. live in secondary buckets.
+ * Pick progress-bar accent from Color Thief semantic swatches.
+ * Prefer Muted / DarkVibrant (album-true but not flashy), then Vibrant / palette.
  */
-function pickAccentSource(dominant: HSL, palette: HSL[]): HSL {
-  const candidates = [dominant, ...palette].filter((c) => c.s >= 12);
-  if (candidates.length === 0) {
-    return dominant;
+function pickAccentFromThief(swatches: SwatchMap, palette: Color[]): HSL | null {
+  const roles = ['Muted', 'DarkVibrant', 'Vibrant', 'DarkMuted', 'LightVibrant'] as const;
+  for (const role of roles) {
+    const sw = swatches[role];
+    if (!sw) continue;
+    const hsl = colorToHsl(sw.color);
+    if (hsl.s >= 12) return hsl;
   }
-  // Prefer real chroma; slight bonus for mid lightness (not pure black/white pixels)
-  let best = candidates[0]!;
+  let best: HSL | null = null;
   let bestScore = -1;
-  for (const c of candidates) {
-    const midL = 1 - Math.abs(c.l - 45) / 50;
-    const score = c.s * (0.65 + 0.35 * clamp(midL, 0, 1));
+  for (const c of palette) {
+    const hsl = colorToHsl(c);
+    if (hsl.s < 12) continue;
+    const midL = 1 - Math.abs(hsl.l - 45) / 50;
+    const score = hsl.s * (0.65 + 0.35 * clamp(midL, 0, 1)) + c.population * 0.001;
     if (score > bestScore) {
       bestScore = score;
-      best = c;
+      best = hsl;
     }
   }
   return best;
 }
 
+/** Background hues from dark semantic swatches + palette. */
+function pickBgHues(swatches: SwatchMap, palette: Color[]): { primary: HSL; secondary: HSL } {
+  const dark =
+    swatches.DarkMuted?.color ??
+    swatches.DarkVibrant?.color ??
+    swatches.Muted?.color ??
+    palette[0] ??
+    null;
+  const primary = dark ? colorToHsl(dark) : { h: 0, s: 8, l: 20 };
+
+  let secondary: HSL = primary;
+  for (const c of palette) {
+    const hsl = colorToHsl(c);
+    const dh = Math.min(Math.abs(hsl.h - primary.h), 360 - Math.abs(hsl.h - primary.h));
+    if (dh >= 25 && hsl.s >= 10) {
+      secondary = hsl;
+      break;
+    }
+  }
+  if (secondary === primary) {
+    const alt =
+      swatches.Muted?.color ??
+      swatches.Vibrant?.color ??
+      swatches.DarkVibrant?.color;
+    if (alt) secondary = colorToHsl(alt);
+  }
+  return { primary, secondary };
+}
+
 /**
- * Build a dark, album-linked theme when art has real chroma.
- * Neutral / B&W samples use makeFallbackTheme(seed) instead (same soft
- * per-track palette as hard sampling failures — no blue sat-boost).
+ * Build dark OLED theme from Color Thief swatches/palette.
+ * Accents are muted for subtle progress bars; neutrals use soft seeded fallbacks.
  */
-function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
-  const accentSrc = pickAccentSource(dominant, palette);
+function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme | null {
+  const accentSrc = pickAccentFromThief(swatches, palette);
+  if (!accentSrc) return null;
 
-  const secondary =
-    palette.find((c) => {
-      const dh = Math.min(Math.abs(c.h - dominant.h), 360 - Math.abs(c.h - dominant.h));
-      return dh >= 25 && c.s >= 12;
-    }) ?? accentSrc;
+  const { primary, secondary } = pickBgHues(swatches, palette);
 
-  // Dark backgrounds from dominant + secondary hues
-  const bgS = clamp(dominant.s * 0.55, 14, 48);
-  const bgL = clamp(11 + (dominant.l > 50 ? 2 : 0), 8, 14);
+  const bgS = clamp(primary.s * 0.55, 14, 48);
+  const bgL = clamp(11 + (primary.l > 50 ? 2 : 0), 8, 14);
   const edgeS = clamp(secondary.s * 0.5, 12, 42);
   const edgeL = clamp(bgL - 5, 4, 9);
   const midS = clamp((bgS + edgeS) / 2, 12, 45);
   const midL = clamp((bgL + edgeL) / 2 + 1, 6, 12);
 
-  const bgCenter = hslToString(dominant.h, bgS, bgL);
+  const bgCenter = hslToString(primary.h, bgS, bgL);
   const bgMid = hslToString(secondary.h, midS, midL);
   const bgEdge = hslToString(secondary.h, edgeS, edgeL);
 
   const midRgb = hslToRgb(secondary.h, midS, midL);
   const texts = pickReadableText(midRgb);
 
-  // Accent from most chromatic swatch, then force muted (no neon)
-  let { h: accentH, s: accentS, l: accentL } = muteAccent(
-    accentSrc.h,
-    accentSrc.s * 0.85,
-    48
-  );
+  let { h: accentH, s: accentS, l: accentL } = muteAccent(accentSrc.h, accentSrc.s * 0.85, 48);
 
-  // Cool-blue leftovers from neutral extract (h≈220) → match fact text instead
+  // Cool-blue leftovers → fact-text white (user preference)
   if (isUnwantedBlueHue(accentH, accentS)) {
     return {
       background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
@@ -409,16 +435,13 @@ function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
   }
 
   let accentRgb = hslToRgb(accentH, accentS, accentL);
-  // Prefer contrast via slight L lift within the mute cap — never jump to neon
   if (getContrastRatio(midRgb, accentRgb) < 2.8) {
     accentL = ACCENT_L_MAX;
     accentRgb = hslToRgb(accentH, accentS, accentL);
   }
   if (getContrastRatio(midRgb, accentRgb) < 2.8) {
-    // Soft light-gray with a whisper of hue (still not neon)
     accentS = clamp(accentS * 0.5, 6, 16);
     accentL = ACCENT_L_MAX;
-    accentRgb = hslToRgb(accentH, accentS, accentL);
   }
 
   const accent = hslToString(accentH, accentS, accentL);
@@ -449,12 +472,18 @@ function themeSeedFromTrackOrUrl(url: string | null): string {
   return `rnd:${Date.now()}`;
 }
 
-/** True when the sample has no usable chroma (B&W / near-gray dark covers). */
-function isNeutralSample(dominant: HSL, palette: HSL[]): boolean {
-  const accentSrc = pickAccentSource(dominant, palette);
-  if (accentSrc.s >= 14) return false;
-  // Also treat as neutral if every palette swatch is weak
-  const maxSat = Math.max(dominant.s, ...palette.map((c) => c.s), 0);
+/** True when Color Thief finds no usable chroma (B&W / near-gray). */
+function isNeutralThiefSample(swatches: SwatchMap, palette: Color[]): boolean {
+  const accent = pickAccentFromThief(swatches, palette);
+  if (accent && accent.s >= 14) return false;
+  let maxSat = 0;
+  for (const c of palette) {
+    maxSat = Math.max(maxSat, c.hsl().s);
+  }
+  for (const role of Object.keys(swatches) as (keyof SwatchMap)[]) {
+    const sw = swatches[role];
+    if (sw) maxSat = Math.max(maxSat, sw.color.hsl().s);
+  }
   return maxSat < 14;
 }
 
@@ -465,7 +494,6 @@ function sampleFromArtwork(url: string | null): void {
   const seed = themeSeedFromTrackOrUrl(url);
 
   if (!url) {
-    // Hard fallback: no artwork at all
     theme.value = makeFallbackTheme(seed);
     return;
   }
@@ -477,29 +505,19 @@ function sampleFromArtwork(url: string | null): void {
   img.onload = () => {
     if (gen !== sampleGeneration) return;
     try {
-      const canvas = document.createElement('canvas');
-      // SAMPLE_SIZE (50) is still cheap; better hue buckets than 16px average
-      const size = Math.min(SAMPLE_SIZE, 48);
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) {
-        theme.value = makeFallbackTheme(seed);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, size, size);
-      const imageData = ctx.getImageData(0, 0, size, size);
-      const dominant = extractDominantColor(imageData);
-      const palette = extractColorPalette(imageData, 5);
+      // Color Thief v3: OKLCH quantization + Vibrant/Muted/Dark* semantic swatches
+      // quality 8 = every 8th pixel (good on Pi 3); colorCount 8 for stable palette
+      const opts = { colorCount: 8, quality: 8, colorSpace: 'oklch' as const };
+      const swatches = getSwatchesSync(img, opts);
+      const palette = getPaletteSync(img, opts) ?? [];
 
-      // B&W / near-gray: same soft seeded palette as hard fallbacks (varies per track)
-      if (isNeutralSample(dominant, palette)) {
+      if (isNeutralThiefSample(swatches, palette)) {
         theme.value = makeFallbackTheme(seed);
         return;
       }
 
-      // Real chroma: album-linked theme
-      theme.value = buildRpiTheme(dominant, palette);
+      const built = buildRpiThemeFromThief(swatches, palette);
+      theme.value = built ?? makeFallbackTheme(seed);
     } catch {
       if (gen === sampleGeneration) theme.value = makeFallbackTheme(seed);
     }

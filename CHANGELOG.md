@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.18] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: album accent/background extraction now uses **Color Thief v3** (OKLCH quantization + semantic Muted/DarkVibrant/Vibrant swatches) instead of the custom hue-bucket sampler. Mute/neon caps and soft fallbacks unchanged.
+
 ## [1.9.17] - 2026-07-30
 
 ### Fixed
