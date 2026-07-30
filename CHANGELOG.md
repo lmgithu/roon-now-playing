@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.15] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: replace cool-blue fallback/neutral accents with fact-text white (`#f2f2f2`); keep other soft palette colors (stone, sage, rose, etc.).
+
 ## [1.9.14] - 2026-07-30
 
 ### Changed

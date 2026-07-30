@@ -179,26 +179,41 @@ export interface RpiTheme {
 }
 
 /**
- * Soft fallback accents — only used when artwork sampling fails / no art.
- * Low saturation, mid-lightness: readable on dark OLED without a loud blue default.
- * Seeded by artwork URL (or random) so tracks vary without flashing every repaint.
+ * Soft fallback accents — used when sampling fails OR art is B&W/neutral.
+ * No cool-blue entries (those used to land on #6d87ba). Blue slots are
+ * replaced by text-matching silver/white for consistency with fact text.
+ * Seeded per track so colors still vary without flashing.
  */
-const FALLBACK_ACCENTS: ReadonlyArray<{ h: number; s: number; l: number }> = [
-  { h: 28, s: 11, l: 52 }, // warm stone
-  { h: 42, s: 10, l: 51 }, // soft sand
-  { h: 95, s: 9, l: 50 }, // muted olive
-  { h: 155, s: 10, l: 50 }, // sage
-  { h: 200, s: 11, l: 51 }, // soft slate (not vivid blue)
-  { h: 260, s: 9, l: 51 }, // dusty violet
-  { h: 340, s: 10, l: 51 }, // rose ash
-  { h: 0, s: 6, l: 52 }, // warm neutral gray
-  { h: 220, s: 7, l: 52 }, // cool neutral gray
+const TEXT_ACCENT = '#f2f2f2'; // same family as fact text
+
+const FALLBACK_ACCENTS: ReadonlyArray<{
+  h: number;
+  s: number;
+  l: number;
+  /** Use fact-text color for progress/dots (no tinted blue/gray) */
+  matchText?: boolean;
+}> = [
+  { h: 28, s: 11, l: 50 }, // warm stone
+  { h: 42, s: 10, l: 50 }, // soft sand
+  { h: 95, s: 9, l: 49 }, // muted olive
+  { h: 155, s: 10, l: 49 }, // sage
+  { h: 0, s: 0, l: 62, matchText: true }, // text white / silver
+  { h: 260, s: 9, l: 50 }, // dusty violet
+  { h: 340, s: 10, l: 50 }, // rose ash
+  { h: 0, s: 6, l: 50 }, // warm neutral gray
+  { h: 0, s: 0, l: 58, matchText: true }, // text white again (weighted chance)
 ];
 
 /** Hard caps so progress/dots never go neon (#4aceb3-style) on OLED. */
 const ACCENT_S_MAX = 32;
 const ACCENT_L_MAX = 50;
 const ACCENT_L_MIN = 40;
+
+/** Cool-blue band that used to produce the unwanted #6d87ba look */
+function isUnwantedBlueHue(h: number, s: number): boolean {
+  if (s < 5) return false;
+  return h >= 190 && h <= 235;
+}
 
 function hashSeed(s: string): number {
   let h = 2166136261;
@@ -209,7 +224,7 @@ function hashSeed(s: string): number {
   return Math.abs(h >>> 0);
 }
 
-/** Build a dark, quiet fallback theme. Does not affect successful album-art extraction. */
+/** Build a dark, quiet fallback / neutral theme. */
 function makeFallbackTheme(seed: string = ''): RpiTheme {
   const idx = seed
     ? hashSeed(seed) % FALLBACK_ACCENTS.length
@@ -221,22 +236,48 @@ function makeFallbackTheme(seed: string = ''): RpiTheme {
   const a = FALLBACK_ACCENTS[idx]!;
   const e = FALLBACK_ACCENTS[edgeIdx]!;
 
-  // Very dark field with a whisper of hue (OLED-friendly, not flashy)
-  const bgCenter = hslToString(a.h, clamp(a.s + 4, 6, 16), 11);
-  const bgMid = hslToString(e.h, clamp(e.s, 5, 14), 7);
-  const bgEdge = hslToString(e.h, clamp(e.s - 2, 4, 12), 4);
+  // Dark field: pure dark for text-match accents; soft tint otherwise
+  const bgCenter = a.matchText
+    ? 'hsl(0, 0%, 10%)'
+    : hslToString(a.h, clamp(a.s + 4, 6, 16), 11);
+  const bgMid = a.matchText
+    ? 'hsl(0, 0%, 6%)'
+    : hslToString(e.h, clamp(e.s, 5, 14), 7);
+  const bgEdge = a.matchText
+    ? 'hsl(0, 0%, 3%)'
+    : hslToString(e.h, clamp(e.s - 2, 4, 12), 4);
 
-  // Soft accent: already low-sat palette, still run through mute for consistency
-  const muted = muteAccent(a.h, a.s, a.l);
-  const accent = hslToString(muted.h, muted.s, muted.l);
-  const accentSoft = hslToString(muted.h, muted.s, muted.l, 0.32);
-  const track = hslToString(muted.h, clamp(muted.s, 4, 12), 22, 0.4);
+  // Progress/dots: text white when matchText, or soft non-blue muted hue
+  let accent: string;
+  let accentSoft: string;
+  let track: string;
+  let coverRing: string;
+
+  if (a.matchText || isUnwantedBlueHue(a.h, a.s)) {
+    accent = TEXT_ACCENT;
+    accentSoft = 'rgba(242, 242, 242, 0.35)';
+    track = 'rgba(242, 242, 242, 0.18)';
+    coverRing = 'rgba(242, 242, 242, 0.1)';
+  } else {
+    const muted = muteAccent(a.h, a.s, a.l);
+    if (isUnwantedBlueHue(muted.h, muted.s)) {
+      accent = TEXT_ACCENT;
+      accentSoft = 'rgba(242, 242, 242, 0.35)';
+      track = 'rgba(242, 242, 242, 0.18)';
+      coverRing = 'rgba(242, 242, 242, 0.1)';
+    } else {
+      accent = hslToString(muted.h, muted.s, muted.l);
+      accentSoft = hslToString(muted.h, muted.s, muted.l, 0.32);
+      track = hslToString(muted.h, clamp(muted.s, 4, 12), 22, 0.4);
+      coverRing = hslToString(a.h, clamp(a.s, 5, 14), 18, 0.45);
+    }
+  }
 
   return {
     background: `radial-gradient(ellipse at 28% 85%, ${bgCenter} 0%, ${bgMid} 52%, ${bgEdge} 100%)`,
-    factText: '#f2f2f2',
+    factText: TEXT_ACCENT,
     factMuted: 'rgba(242, 242, 242, 0.7)',
-    title: '#f2f2f2',
+    title: TEXT_ACCENT,
     artist: 'rgba(242, 242, 242, 0.8)',
     meta: 'rgba(242, 242, 242, 0.68)',
     sep: 'rgba(242, 242, 242, 0.42)',
@@ -244,7 +285,7 @@ function makeFallbackTheme(seed: string = ''): RpiTheme {
     progressFill: accent,
     dot: accentSoft,
     dotActive: accent,
-    coverRing: hslToString(a.h, clamp(a.s, 5, 14), 18, 0.45),
+    coverRing,
   };
 }
 
@@ -348,6 +389,24 @@ function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
     accentSrc.s * 0.85,
     48
   );
+
+  // Cool-blue leftovers from neutral extract (h≈220) → match fact text instead
+  if (isUnwantedBlueHue(accentH, accentS)) {
+    return {
+      background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
+      factText: texts.text,
+      factMuted: texts.tertiary,
+      title: texts.text,
+      artist: texts.secondary,
+      meta: texts.tertiary,
+      sep: texts.tertiary,
+      progressTrack: 'rgba(242, 242, 242, 0.18)',
+      progressFill: TEXT_ACCENT,
+      dot: 'rgba(242, 242, 242, 0.35)',
+      dotActive: TEXT_ACCENT,
+      coverRing: 'rgba(242, 242, 242, 0.1)',
+    };
+  }
 
   let accentRgb = hslToRgb(accentH, accentS, accentL);
   // Prefer contrast via slight L lift within the mute cap — never jump to neon
@@ -762,7 +821,7 @@ const layoutStyle = computed(
 .progress-fill {
   height: 100%;
   width: 100%;
-  background: var(--rpi-progress-fill, hsl(0, 0%, 62%));
+  background: var(--rpi-progress-fill, #f2f2f2);
   transform-origin: left center;
   /* scaleX is GPU-friendly; linear transition bridges 100ms seek ticks */
   transform: scaleX(var(--rpi-progress, 0));
