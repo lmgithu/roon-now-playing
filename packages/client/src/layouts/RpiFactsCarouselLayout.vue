@@ -184,16 +184,21 @@ export interface RpiTheme {
  * Seeded by artwork URL (or random) so tracks vary without flashing every repaint.
  */
 const FALLBACK_ACCENTS: ReadonlyArray<{ h: number; s: number; l: number }> = [
-  { h: 28, s: 11, l: 58 }, // warm stone
-  { h: 42, s: 10, l: 57 }, // soft sand
-  { h: 95, s: 9, l: 56 }, // muted olive
-  { h: 155, s: 10, l: 55 }, // sage
-  { h: 200, s: 11, l: 58 }, // soft slate (not vivid blue)
-  { h: 260, s: 9, l: 58 }, // dusty violet
-  { h: 340, s: 10, l: 57 }, // rose ash
-  { h: 0, s: 6, l: 60 }, // warm neutral gray
-  { h: 220, s: 7, l: 59 }, // cool neutral gray
+  { h: 28, s: 11, l: 52 }, // warm stone
+  { h: 42, s: 10, l: 51 }, // soft sand
+  { h: 95, s: 9, l: 50 }, // muted olive
+  { h: 155, s: 10, l: 50 }, // sage
+  { h: 200, s: 11, l: 51 }, // soft slate (not vivid blue)
+  { h: 260, s: 9, l: 51 }, // dusty violet
+  { h: 340, s: 10, l: 51 }, // rose ash
+  { h: 0, s: 6, l: 52 }, // warm neutral gray
+  { h: 220, s: 7, l: 52 }, // cool neutral gray
 ];
+
+/** Hard caps so progress/dots never go neon (#4aceb3-style) on OLED. */
+const ACCENT_S_MAX = 32;
+const ACCENT_L_MAX = 50;
+const ACCENT_L_MIN = 40;
 
 function hashSeed(s: string): number {
   let h = 2166136261;
@@ -221,10 +226,11 @@ function makeFallbackTheme(seed: string = ''): RpiTheme {
   const bgMid = hslToString(e.h, clamp(e.s, 5, 14), 7);
   const bgEdge = hslToString(e.h, clamp(e.s - 2, 4, 12), 4);
 
-  // Soft accent: muted, not dominant (~#9a9a9a family with slight hue)
-  const accent = hslToString(a.h, a.s, a.l);
-  const accentSoft = hslToString(a.h, a.s, a.l, 0.32);
-  const track = hslToString(a.h, clamp(a.s, 4, 12), 22, 0.4);
+  // Soft accent: already low-sat palette, still run through mute for consistency
+  const muted = muteAccent(a.h, a.s, a.l);
+  const accent = hslToString(muted.h, muted.s, muted.l);
+  const accentSoft = hslToString(muted.h, muted.s, muted.l, 0.32);
+  const track = hslToString(muted.h, clamp(muted.s, 4, 12), 22, 0.4);
 
   return {
     background: `radial-gradient(ellipse at 28% 85%, ${bgCenter} 0%, ${bgMid} 52%, ${bgEdge} 100%)`,
@@ -249,6 +255,21 @@ const DARK_TEXT: RGB = { r: 26, g: 26, b: 26 };
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
+}
+
+/**
+ * Keep UI accents subtle: preserve hue, clamp sat/lightness so vivid album
+ * colors (cyan, lime, hot pink) cannot become neon progress bars.
+ */
+function muteAccent(h: number, s: number, l: number): { h: number; s: number; l: number } {
+  // Pull very vivid sources down hard; leave already-soft ones mostly alone
+  const softS = s > 45 ? s * 0.45 : s * 0.7;
+  const softL = l > 55 ? 46 : l > ACCENT_L_MAX ? ACCENT_L_MAX : l;
+  return {
+    h,
+    s: clamp(softS, 8, ACCENT_S_MAX),
+    l: clamp(softL, ACCENT_L_MIN, ACCENT_L_MAX),
+  };
 }
 
 function pickReadableText(bg: RGB): { text: string; secondary: string; tertiary: string } {
@@ -321,25 +342,29 @@ function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
   const midRgb = hslToRgb(secondary.h, midS, midL);
   const texts = pickReadableText(midRgb);
 
-  // Accent from most chromatic swatch; mild lift only (no floor of 40)
-  let accentH = accentSrc.h;
-  let accentS = clamp(accentSrc.s * 0.85, 18, 68);
-  let accentL = 56;
+  // Accent from most chromatic swatch, then force muted (no neon)
+  let { h: accentH, s: accentS, l: accentL } = muteAccent(
+    accentSrc.h,
+    accentSrc.s * 0.85,
+    48
+  );
 
   let accentRgb = hslToRgb(accentH, accentS, accentL);
-  if (getContrastRatio(midRgb, accentRgb) < 3) {
-    accentL = 66;
+  // Prefer contrast via slight L lift within the mute cap — never jump to neon
+  if (getContrastRatio(midRgb, accentRgb) < 2.8) {
+    accentL = ACCENT_L_MAX;
     accentRgb = hslToRgb(accentH, accentS, accentL);
   }
-  if (getContrastRatio(midRgb, accentRgb) < 3) {
-    accentS = clamp(accentS, 10, 40);
-    accentL = 78;
+  if (getContrastRatio(midRgb, accentRgb) < 2.8) {
+    // Soft light-gray with a whisper of hue (still not neon)
+    accentS = clamp(accentS * 0.5, 6, 16);
+    accentL = ACCENT_L_MAX;
     accentRgb = hslToRgb(accentH, accentS, accentL);
   }
 
   const accent = hslToString(accentH, accentS, accentL);
   const accentSoft = hslToString(accentH, accentS, accentL, 0.38);
-  const track = hslToString(accentH, clamp(bgS, 8, 28), clamp(bgL + 16, 16, 28), 0.45);
+  const track = hslToString(accentH, clamp(bgS, 8, 22), clamp(bgL + 14, 14, 24), 0.45);
 
   return {
     background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.13] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: clamp album-derived progress/dot accents (max sat ~32%, max lightness ~50%) so vivid covers cannot produce neon bars (e.g. `#4aceb3`).
+
 ## [1.9.12] - 2026-07-30
 
 ### Changed
