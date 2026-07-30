@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [1.9.23] - 2026-07-30
 
-### Changed
+### Notes
 
-- **CI**: Docker image builds **linux/amd64 only** (Umbrel Home / Intel N100). Drops arm64+QEMU for faster publishes.
+- Keep multi-arch Docker builds (`linux/amd64` + `linux/arm64`) as upstream CI.
 
 ## [1.9.22] - 2026-07-30
 
