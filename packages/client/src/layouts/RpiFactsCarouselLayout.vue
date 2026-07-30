@@ -178,22 +178,71 @@ export interface RpiTheme {
   coverRing: string;
 }
 
-const FALLBACK_THEME: RpiTheme = {
-  background: 'radial-gradient(ellipse at 28% 85%, hsl(220, 22%, 12%) 0%, hsl(220, 18%, 6%) 55%, hsl(220, 16%, 4%) 100%)',
-  factText: '#f5f5f5',
-  factMuted: 'rgba(245, 245, 245, 0.72)',
-  title: '#f5f5f5',
-  artist: 'rgba(245, 245, 245, 0.82)',
-  meta: 'rgba(245, 245, 245, 0.7)',
-  sep: 'rgba(245, 245, 245, 0.45)',
-  progressTrack: 'rgba(245, 245, 245, 0.16)',
-  progressFill: 'hsl(210, 55%, 62%)',
-  dot: 'rgba(245, 245, 245, 0.35)',
-  dotActive: 'hsl(210, 55%, 68%)',
-  coverRing: 'rgba(255, 255, 255, 0.08)',
-};
+/**
+ * Soft fallback accents — only used when artwork sampling fails / no art.
+ * Low saturation, mid-lightness: readable on dark OLED without a loud blue default.
+ * Seeded by artwork URL (or random) so tracks vary without flashing every repaint.
+ */
+const FALLBACK_ACCENTS: ReadonlyArray<{ h: number; s: number; l: number }> = [
+  { h: 28, s: 11, l: 58 }, // warm stone
+  { h: 42, s: 10, l: 57 }, // soft sand
+  { h: 95, s: 9, l: 56 }, // muted olive
+  { h: 155, s: 10, l: 55 }, // sage
+  { h: 200, s: 11, l: 58 }, // soft slate (not vivid blue)
+  { h: 260, s: 9, l: 58 }, // dusty violet
+  { h: 340, s: 10, l: 57 }, // rose ash
+  { h: 0, s: 6, l: 60 }, // warm neutral gray
+  { h: 220, s: 7, l: 59 }, // cool neutral gray
+];
 
-const theme = ref<RpiTheme>({ ...FALLBACK_THEME });
+function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h >>> 0);
+}
+
+/** Build a dark, quiet fallback theme. Does not affect successful album-art extraction. */
+function makeFallbackTheme(seed: string = ''): RpiTheme {
+  const idx = seed
+    ? hashSeed(seed) % FALLBACK_ACCENTS.length
+    : Math.floor(Math.random() * FALLBACK_ACCENTS.length);
+  const edgeIdx = seed
+    ? hashSeed(seed + ':edge') % FALLBACK_ACCENTS.length
+    : (idx + 3) % FALLBACK_ACCENTS.length;
+
+  const a = FALLBACK_ACCENTS[idx]!;
+  const e = FALLBACK_ACCENTS[edgeIdx]!;
+
+  // Very dark field with a whisper of hue (OLED-friendly, not flashy)
+  const bgCenter = hslToString(a.h, clamp(a.s + 4, 6, 16), 11);
+  const bgMid = hslToString(e.h, clamp(e.s, 5, 14), 7);
+  const bgEdge = hslToString(e.h, clamp(e.s - 2, 4, 12), 4);
+
+  // Soft accent: muted, not dominant (~#9a9a9a family with slight hue)
+  const accent = hslToString(a.h, a.s, a.l);
+  const accentSoft = hslToString(a.h, a.s, a.l, 0.32);
+  const track = hslToString(a.h, clamp(a.s, 4, 12), 22, 0.4);
+
+  return {
+    background: `radial-gradient(ellipse at 28% 85%, ${bgCenter} 0%, ${bgMid} 52%, ${bgEdge} 100%)`,
+    factText: '#f2f2f2',
+    factMuted: 'rgba(242, 242, 242, 0.7)',
+    title: '#f2f2f2',
+    artist: 'rgba(242, 242, 242, 0.8)',
+    meta: 'rgba(242, 242, 242, 0.68)',
+    sep: 'rgba(242, 242, 242, 0.42)',
+    progressTrack: track,
+    progressFill: accent,
+    dot: accentSoft,
+    dotActive: accent,
+    coverRing: hslToString(a.h, clamp(a.s, 5, 14), 18, 0.45),
+  };
+}
+
+const theme = ref<RpiTheme>(makeFallbackTheme());
 
 const LIGHT_TEXT: RGB = { r: 245, g: 245, b: 245 };
 const DARK_TEXT: RGB = { r: 26, g: 26, b: 26 };
@@ -290,7 +339,11 @@ function sampleFromArtwork(url: string | null): void {
   const gen = ++sampleGeneration;
 
   if (!url) {
-    theme.value = { ...FALLBACK_THEME };
+    // Seed with track id if present so the soft fallback varies per song
+    const seed = props.track
+      ? `${props.track.artist}::${props.track.album}::${props.track.title}`
+      : `rnd:${Date.now()}`;
+    theme.value = makeFallbackTheme(seed);
     return;
   }
 
@@ -308,21 +361,22 @@ function sampleFromArtwork(url: string | null): void {
       canvas.height = size;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) {
-        theme.value = { ...FALLBACK_THEME };
+        theme.value = makeFallbackTheme(url);
         return;
       }
       ctx.drawImage(img, 0, 0, size, size);
       const imageData = ctx.getImageData(0, 0, size, size);
       const dominant = extractDominantColor(imageData);
       const palette = extractColorPalette(imageData, 5);
+      // Successful extraction path — unchanged algorithm
       theme.value = buildRpiTheme(dominant, palette);
     } catch {
-      if (gen === sampleGeneration) theme.value = { ...FALLBACK_THEME };
+      if (gen === sampleGeneration) theme.value = makeFallbackTheme(url);
     }
   };
 
   img.onerror = () => {
-    if (gen === sampleGeneration) theme.value = { ...FALLBACK_THEME };
+    if (gen === sampleGeneration) theme.value = makeFallbackTheme(url);
   };
 
   img.src = url;

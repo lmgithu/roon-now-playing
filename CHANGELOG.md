@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.8] - 2026-07-28
+
+### Changed
+
+- **RPi Facts Carousel**: softer, low-saturation fallback accents (warm stone / sage / slate gray, etc.) seeded per track when art sampling fails — no more loud default blue. Successful album-art color extraction unchanged.
+
 ## [1.9.7] - 2026-07-28
 
 ### Changed
