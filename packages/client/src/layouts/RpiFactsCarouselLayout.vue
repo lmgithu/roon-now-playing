@@ -212,21 +212,15 @@ watch(
   { immediate: true }
 );
 
-/** Throttle progress bar visual updates (~4 Hz) to reduce Pi repaints */
-const displayProgress = ref(0);
-let lastProgressPaint = 0;
-
-watch(
-  () => props.progress,
-  (p) => {
-    const now = performance.now();
-    if (now - lastProgressPaint >= 250 || p < displayProgress.value || p >= 99.5) {
-      displayProgress.value = p;
-      lastProgressPaint = now;
-    }
-  },
-  { immediate: true }
-);
+/**
+ * Smooth progress: useNowPlaying already interpolates ~10 Hz.
+ * We drive width via transform: scaleX (compositor-friendly on Pi) and a short
+ * linear CSS transition so each step eases into the next — no visible jumps.
+ */
+const progressScale = computed(() => {
+  const p = Number.isFinite(props.progress) ? props.progress : 0;
+  return Math.min(100, Math.max(0, p)) / 100;
+});
 
 const layoutStyle = computed(
   (): CSSProperties => ({
@@ -243,6 +237,7 @@ const layoutStyle = computed(
     ['--rpi-dot' as string]: theme.value.dot,
     ['--rpi-dot-active' as string]: theme.value.dotActive,
     ['--rpi-cover-ring' as string]: theme.value.coverRing,
+    ['--rpi-progress' as string]: String(progressScale.value),
   })
 );
 </script>
@@ -296,7 +291,7 @@ const layoutStyle = computed(
               <span class="np-artist">{{ track.artist }}</span>
             </div>
             <div class="progress-line">
-              <div class="progress-fill" :style="{ width: `${displayProgress}%` }" />
+              <div class="progress-fill" />
             </div>
             <div class="np-meta">
               <span class="zone-name">{{ zoneName }}</span>
@@ -480,12 +475,21 @@ const layoutStyle = computed(
   background: var(--rpi-progress-track, rgba(245, 245, 245, 0.16));
   border-radius: 999px;
   overflow: hidden;
+  /* Isolate fill transforms so only this strip repaints */
+  contain: layout style;
 }
 
 .progress-fill {
   height: 100%;
+  width: 100%;
   background: var(--rpi-progress-fill, hsl(210, 55%, 62%));
-  width: 0%;
+  transform-origin: left center;
+  /* scaleX is GPU-friendly; linear transition bridges 100ms seek ticks */
+  transform: scaleX(var(--rpi-progress, 0));
+  transition: transform 0.12s linear;
+  will-change: transform;
+  /* Avoid subpixel flicker on some Chromium builds */
+  backface-visibility: hidden;
 }
 
 .np-meta {

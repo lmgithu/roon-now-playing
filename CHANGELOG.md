@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.6] - 2026-07-28
+
+### Changed
+
+- **RPi Facts Carousel**: smooth progress bar via `transform: scaleX` + short linear CSS transition (no more stepped pixel jumps from throttled width updates).
+
 ## [1.9.5] - 2026-07-28
 
 ### Changed
