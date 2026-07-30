@@ -580,7 +580,11 @@ const layoutStyle = computed(
   margin: 0;
   max-width: 20em;
   color: var(--rpi-fact, #f5f5f5);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+  /* Subtitle-style stack: crisp edge + soft halo (TV-readable, no CSS filter) */
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.95),
+    0 2px 2px rgba(0, 0, 0, 0.85),
+    0 3px 12px rgba(0, 0, 0, 0.65);
   /* Sequential fade only — single layer, never two facts overlapping */
   transition: opacity 0.32s ease-in-out;
   will-change: opacity;
@@ -626,6 +630,10 @@ const layoutStyle = computed(
   font-weight: var(--font-semibold);
   margin: 0;
   color: var(--rpi-fact, #f5f5f5);
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.95),
+    0 2px 2px rgba(0, 0, 0, 0.85),
+    0 3px 12px rgba(0, 0, 0, 0.65);
 }
 
 .zone-hint {

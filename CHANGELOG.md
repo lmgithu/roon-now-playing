@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.11] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: subtitle-style fact text shadow stack (crisp edge + soft halo) for better OLED/TV legibility; still no CSS `filter`.
+
 ## [1.9.10] - 2026-07-28
 
 ### Changed
