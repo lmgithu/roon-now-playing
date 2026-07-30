@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.5] - 2026-07-28
+
+### Changed
+
+- **RPi Facts Carousel**: album-linked dark radial background (hue-bucket dominant + secondary palette) instead of flat RGB average; progress bar, dots, zone, and time use the same palette accents with WCAG-oriented contrast against the dark field. Still no CSS blur. Classic `facts-carousel` unchanged.
+
 ## [1.9.4] - 2026-07-28
 
 ### Added

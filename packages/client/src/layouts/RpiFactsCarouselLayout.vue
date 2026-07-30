@@ -1,13 +1,25 @@
 <script setup lang="ts">
 /**
- * RPi Facts Carousel — Facts-carousel look, tuned for Raspberry Pi 3 / weak GPUs.
+ * RPi Facts Carousel — Facts-carousel information hierarchy, Pi 3–safe rendering.
  *
- * Avoids: full-screen CSS blur, dual-image crossfades, mix-blend, heavy text-shadows.
- * Uses: solid (optionally tinted) background, sharp cover art beside the now-playing strip.
+ * - No full-screen CSS blur / dual-image crossfades
+ * - Dark radial gradient from album dominant + secondary hues (hue-bucket extract)
+ * - Now-playing strip (title, zone, progress, time) tinted from the same palette
+ * - WCAG-oriented contrast: dark bg + light text; accent for progress/dots
  */
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, type CSSProperties } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
 import { useFacts } from '../composables/useFacts';
+import {
+  SAMPLE_SIZE,
+  extractDominantColor,
+  extractColorPalette,
+  hslToString,
+  hslToRgb,
+  getContrastRatio,
+  type HSL,
+  type RGB,
+} from '../composables/colorUtils';
 
 const props = defineProps<{
   track: Track | null;
@@ -26,56 +38,167 @@ const stateRef = computed(() => props.state);
 
 const { facts, currentFactIndex, currentFact, isLoading, error } = useFacts(trackRef, stateRef);
 
-/** Soft solid tint from a tiny canvas sample (no CSS blur). Falls back to black. */
-const bgTint = ref('rgb(8, 8, 12)');
+export interface RpiTheme {
+  /** CSS background (gradient) */
+  background: string;
+  factText: string;
+  factMuted: string;
+  title: string;
+  artist: string;
+  meta: string;
+  sep: string;
+  progressTrack: string;
+  progressFill: string;
+  dot: string;
+  dotActive: string;
+  coverRing: string;
+}
 
-function sampleTint(url: string | null): void {
+const FALLBACK_THEME: RpiTheme = {
+  background: 'radial-gradient(ellipse at 28% 85%, hsl(220, 22%, 12%) 0%, hsl(220, 18%, 6%) 55%, hsl(220, 16%, 4%) 100%)',
+  factText: '#f5f5f5',
+  factMuted: 'rgba(245, 245, 245, 0.72)',
+  title: '#f5f5f5',
+  artist: 'rgba(245, 245, 245, 0.82)',
+  meta: 'rgba(245, 245, 245, 0.7)',
+  sep: 'rgba(245, 245, 245, 0.45)',
+  progressTrack: 'rgba(245, 245, 245, 0.16)',
+  progressFill: 'hsl(210, 55%, 62%)',
+  dot: 'rgba(245, 245, 245, 0.35)',
+  dotActive: 'hsl(210, 55%, 68%)',
+  coverRing: 'rgba(255, 255, 255, 0.08)',
+};
+
+const theme = ref<RpiTheme>({ ...FALLBACK_THEME });
+
+const LIGHT_TEXT: RGB = { r: 245, g: 245, b: 245 };
+const DARK_TEXT: RGB = { r: 26, g: 26, b: 26 };
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+function pickReadableText(bg: RGB): { text: string; secondary: string; tertiary: string } {
+  const lightC = getContrastRatio(bg, LIGHT_TEXT);
+  const darkC = getContrastRatio(bg, DARK_TEXT);
+  // Prefer light text on dark OLED themes; only use dark text if it clearly wins
+  if (lightC >= 4.5 || lightC >= darkC) {
+    return {
+      text: '#f5f5f5',
+      secondary: 'rgba(245, 245, 245, 0.82)',
+      tertiary: 'rgba(245, 245, 245, 0.7)',
+    };
+  }
+  return {
+    text: '#1a1a1a',
+    secondary: 'rgba(26, 26, 26, 0.8)',
+    tertiary: 'rgba(26, 26, 26, 0.65)',
+  };
+}
+
+/**
+ * Build a dark, album-linked theme. Background stays OLED-safe (low L);
+ * accents (progress, active dots) use a brighter tint of the same hue.
+ */
+function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
+  const secondary =
+    palette.find((c) => {
+      const dh = Math.min(Math.abs(c.h - dominant.h), 360 - Math.abs(c.h - dominant.h));
+      return dh >= 25 && c.s >= 12;
+    }) ?? dominant;
+
+  // Force dark backgrounds (deeper than default generateColors) for OLED + white facts
+  const bgS = clamp(dominant.s * 0.55, 18, 48);
+  const bgL = clamp(11 + (dominant.l > 50 ? 2 : 0), 8, 14);
+  const edgeS = clamp(secondary.s * 0.5, 14, 42);
+  const edgeL = clamp(bgL - 5, 4, 9);
+  const midS = clamp((bgS + edgeS) / 2, 16, 45);
+  const midL = clamp((bgL + edgeL) / 2 + 1, 6, 12);
+
+  const bgCenter = hslToString(dominant.h, bgS, bgL);
+  const bgMid = hslToString(secondary.h, midS, midL);
+  const bgEdge = hslToString(secondary.h, edgeS, edgeL);
+
+  // Sample contrast against the "average" dark field (mid stop)
+  const midRgb = hslToRgb(secondary.h, midS, midL);
+  const texts = pickReadableText(midRgb);
+
+  // Accent for progress / active dots — brighter, still on-hue
+  let accentS = clamp(Math.max(dominant.s, 40) * 0.9, 35, 72);
+  let accentL = 58;
+  let accentRgb = hslToRgb(dominant.h, accentS, accentL);
+  // Ensure accent is visible on dark bg (prefer ≥ 3:1 for large UI chrome)
+  if (getContrastRatio(midRgb, accentRgb) < 3) {
+    accentL = 68;
+    accentS = clamp(accentS + 5, 35, 75);
+    accentRgb = hslToRgb(dominant.h, accentS, accentL);
+  }
+  if (getContrastRatio(midRgb, accentRgb) < 3) {
+    // Fall back to near-white with a light tint
+    accentS = 30;
+    accentL = 82;
+    accentRgb = hslToRgb(dominant.h, accentS, accentL);
+  }
+
+  const accent = hslToString(dominant.h, accentS, accentL);
+  const accentSoft = hslToString(dominant.h, accentS, accentL, 0.38);
+  const track = hslToString(dominant.h, clamp(bgS, 10, 30), clamp(bgL + 18, 18, 28), 0.45);
+
+  return {
+    background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
+    factText: texts.text,
+    factMuted: texts.tertiary,
+    title: texts.text,
+    artist: texts.secondary,
+    meta: texts.tertiary,
+    sep: texts.tertiary,
+    progressTrack: track,
+    progressFill: accent,
+    dot: accentSoft,
+    dotActive: accent,
+    coverRing: hslToString(dominant.h, bgS, clamp(bgL + 10, 14, 24), 0.55),
+  };
+}
+
+let sampleGeneration = 0;
+
+function sampleFromArtwork(url: string | null): void {
+  const gen = ++sampleGeneration;
+
   if (!url) {
-    bgTint.value = 'rgb(8, 8, 12)';
+    theme.value = { ...FALLBACK_THEME };
     return;
   }
 
   const img = new Image();
-  // Same-origin artwork from this app; allow canvas read when CORS allows.
   img.crossOrigin = 'anonymous';
   img.decoding = 'async';
 
   img.onload = () => {
+    if (gen !== sampleGeneration) return;
     try {
-      const size = 16;
       const canvas = document.createElement('canvas');
+      // SAMPLE_SIZE (50) is still cheap; better hue buckets than 16px average
+      const size = Math.min(SAMPLE_SIZE, 48);
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0, size, size);
-      const data = ctx.getImageData(0, 0, size, size).data;
-      let r = 0;
-      let g = 0;
-      let b = 0;
-      let n = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        // Skip near-transparent pixels
-        if ((data[i + 3] ?? 0) < 32) continue;
-        r += data[i] ?? 0;
-        g += data[i + 1] ?? 0;
-        b += data[i + 2] ?? 0;
-        n++;
+      if (!ctx) {
+        theme.value = { ...FALLBACK_THEME };
+        return;
       }
-      if (n === 0) return;
-      // Darken heavily so white fact text stays legible without a blur layer
-      const factor = 0.22;
-      r = Math.round((r / n) * factor);
-      g = Math.round((g / n) * factor);
-      b = Math.round((b / n) * factor);
-      bgTint.value = `rgb(${r}, ${g}, ${b})`;
+      ctx.drawImage(img, 0, 0, size, size);
+      const imageData = ctx.getImageData(0, 0, size, size);
+      const dominant = extractDominantColor(imageData);
+      const palette = extractColorPalette(imageData, 5);
+      theme.value = buildRpiTheme(dominant, palette);
     } catch {
-      bgTint.value = 'rgb(8, 8, 12)';
+      if (gen === sampleGeneration) theme.value = { ...FALLBACK_THEME };
     }
   };
 
   img.onerror = () => {
-    bgTint.value = 'rgb(8, 8, 12)';
+    if (gen === sampleGeneration) theme.value = { ...FALLBACK_THEME };
   };
 
   img.src = url;
@@ -84,7 +207,7 @@ function sampleTint(url: string | null): void {
 watch(
   () => props.artworkUrl,
   (url) => {
-    sampleTint(url);
+    sampleFromArtwork(url);
   },
   { immediate: true }
 );
@@ -104,11 +227,28 @@ watch(
   },
   { immediate: true }
 );
+
+const layoutStyle = computed(
+  (): CSSProperties => ({
+    background: theme.value.background,
+    // CSS variables for the strip / facts (readable + album-linked)
+    ['--rpi-fact' as string]: theme.value.factText,
+    ['--rpi-fact-muted' as string]: theme.value.factMuted,
+    ['--rpi-title' as string]: theme.value.title,
+    ['--rpi-artist' as string]: theme.value.artist,
+    ['--rpi-meta' as string]: theme.value.meta,
+    ['--rpi-sep' as string]: theme.value.sep,
+    ['--rpi-progress-track' as string]: theme.value.progressTrack,
+    ['--rpi-progress-fill' as string]: theme.value.progressFill,
+    ['--rpi-dot' as string]: theme.value.dot,
+    ['--rpi-dot-active' as string]: theme.value.dotActive,
+    ['--rpi-cover-ring' as string]: theme.value.coverRing,
+  })
+);
 </script>
 
 <template>
-  <div class="rpi-facts-carousel-layout" :style="{ backgroundColor: bgTint }">
-    <!-- Content (no full-bleed filtered layers) -->
+  <div class="rpi-facts-carousel-layout" :style="layoutStyle">
     <div class="content">
       <div class="safe-zone">
         <!-- Fact (hero) -->
@@ -136,7 +276,7 @@ watch(
           </template>
         </div>
 
-        <!-- Bottom: cover + now-playing strip -->
+        <!-- Bottom: cover + now-playing strip (colors from album theme) -->
         <div v-if="track" class="now-playing-row">
           <div class="cover-wrap">
             <img
@@ -177,10 +317,9 @@ watch(
   position: relative;
   width: 100%;
   height: 100%;
-  /* Solid color only — no CSS filters / blurred images */
-  background-color: #08080c;
+  /* Fallback before first sample */
+  background: radial-gradient(ellipse at 28% 85%, hsl(220, 22%, 12%) 0%, hsl(220, 16%, 4%) 100%);
   overflow: hidden;
-  /* Hint: isolate so text doesn't force parent filter compositing */
   isolation: isolate;
 }
 
@@ -217,20 +356,19 @@ watch(
   line-height: var(--leading-snug);
   margin: 0;
   max-width: 20em;
-  color: #fff;
-  /* Soft shadow without multi-layer blur cost */
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
+  color: var(--rpi-fact, #f5f5f5);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
 }
 
 .loading-hint,
 .error-hint {
   font-size: calc(var(--fluid-caption) * var(--font-scale, 1));
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--rpi-fact-muted, rgba(245, 245, 245, 0.72));
   margin: 0;
 }
 
 .error-hint a {
-  color: #fff;
+  color: var(--rpi-fact, #f5f5f5);
 }
 
 .fact-dots {
@@ -244,30 +382,30 @@ watch(
   width: clamp(8px, 0.9cqi, 18px);
   height: clamp(8px, 0.9cqi, 18px);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
+  background: var(--rpi-dot, rgba(245, 245, 245, 0.35));
 }
 
 .dot.active {
-  background: #fff;
+  background: var(--rpi-dot-active, #f5f5f5);
 }
 
 .no-playback {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--rpi-fact-muted, rgba(245, 245, 245, 0.8));
 }
 
 .no-playback-text {
   font-size: calc(var(--fluid-hero) * var(--font-scale, 1) * 0.55);
   font-weight: var(--font-semibold);
   margin: 0;
+  color: var(--rpi-fact, #f5f5f5);
 }
 
 .zone-hint {
   font-size: calc(var(--fluid-caption) * var(--font-scale, 1));
   margin: 0.6em 0 0 0;
-  opacity: 0.75;
+  color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
-/* Bottom strip: cover left + meta/progress right */
 .now-playing-row {
   display: flex;
   flex-direction: row;
@@ -283,8 +421,9 @@ watch(
   height: clamp(72px, 12cqi, 160px);
   border-radius: clamp(6px, 0.6cqi, 12px);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--rpi-cover-ring, rgba(255, 255, 255, 0.08));
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  outline: 1px solid var(--rpi-cover-ring, rgba(255, 255, 255, 0.08));
 }
 
 .cover-art {
@@ -292,7 +431,6 @@ watch(
   height: 100%;
   object-fit: cover;
   display: block;
-  /* No filters — sharp art for Pi */
 }
 
 .cover-placeholder {
@@ -308,7 +446,6 @@ watch(
   flex-direction: column;
   justify-content: center;
   gap: 0.55rem;
-  color: rgba(255, 255, 255, 0.92);
 }
 
 .np-line {
@@ -322,33 +459,32 @@ watch(
 
 .np-title {
   font-weight: var(--font-semibold);
-  color: #fff;
+  color: var(--rpi-title, #f5f5f5);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .np-sep {
-  opacity: 0.45;
+  color: var(--rpi-sep, rgba(245, 245, 245, 0.45));
   flex-shrink: 0;
 }
 
 .np-artist {
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--rpi-artist, rgba(245, 245, 245, 0.82));
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .progress-line {
   height: clamp(4px, 0.4cqi, 8px);
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--rpi-progress-track, rgba(245, 245, 245, 0.16));
   border-radius: 999px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: rgba(255, 255, 255, 0.92);
-  /* No transition — avoids continuous compositor work on Pi */
+  background: var(--rpi-progress-fill, hsl(210, 55%, 62%));
   width: 0%;
 }
 
@@ -358,7 +494,7 @@ watch(
   align-items: center;
   gap: 1rem;
   font-size: calc(var(--fluid-caption) * var(--font-scale, 1));
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
 .zone-name {
@@ -366,15 +502,16 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 55%;
+  color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
 .time-info {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
-/* Narrow / portrait: keep cover visible, slightly larger strip */
 @container layout (max-width: 700px) {
   .now-playing-row {
     gap: 0.75rem;
