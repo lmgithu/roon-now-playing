@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.21] - 2026-07-30
+
+### Fixed
+
+- **RPi Facts Carousel**: white progress bar on every track. Color Thief **Muted** is intentionally low-chroma; we treated `s < 14` as "use pure white". Now Muted/DarkMuted hues are kept (softened for OLED) and white is not forced.
+
 ## [1.9.20] - 2026-07-30
 
 ### Changed

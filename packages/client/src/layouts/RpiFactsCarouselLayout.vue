@@ -299,14 +299,18 @@ function clamp(n: number, min: number, max: number): number {
 /**
  * Keep UI accents subtle: preserve hue, clamp sat/lightness so vivid album
  * colors (cyan, lime, hot pink) cannot become neon progress bars.
+ * Near-gray sources stay silver (not pure white).
  */
 function muteAccent(h: number, s: number, l: number): { h: number; s: number; l: number } {
-  // Pull very vivid sources down hard; leave already-soft ones mostly alone
-  const softS = s > 45 ? s * 0.45 : s * 0.7;
-  const softL = l > 55 ? 46 : l > ACCENT_L_MAX ? ACCENT_L_MAX : l;
+  if (s < 6) {
+    return { h: 0, s: 0, l: clamp(l > 35 ? 54 : 48, ACCENT_L_MIN, 58) };
+  }
+  // Color Thief "Muted" is already soft — keep more of its sat; only crush neon
+  const softS = s > 50 ? s * 0.4 : s > 30 ? s * 0.75 : s;
+  const softL = l > 55 ? 48 : l;
   return {
     h,
-    s: clamp(softS, 8, ACCENT_S_MAX),
+    s: clamp(softS, 10, ACCENT_S_MAX),
     l: clamp(softL, ACCENT_L_MIN, ACCENT_L_MAX),
   };
 }
@@ -335,16 +339,16 @@ function colorToHsl(c: Color): HSL {
 }
 
 /**
- * Progress-bar accent: Color Thief Muted / DarkMuted only (all albums).
- * No Vibrant path — softer, more consistent status chrome.
- * Returns null only when both swatches are missing (true extraction gap).
+ * Progress accent: Muted → DarkMuted (all albums).
+ * If both missing, use DarkVibrant / first palette color so we rarely fall back to white.
  */
-function pickAccentFromThief(swatches: SwatchMap, _palette: Color[]): HSL | null {
-  // Prefer Muted (softer) then DarkMuted (deeper mono / dark covers)
-  const muted = swatches.Muted;
-  if (muted) return colorToHsl(muted.color);
-  const darkMuted = swatches.DarkMuted;
-  if (darkMuted) return colorToHsl(darkMuted.color);
+function pickAccentFromThief(swatches: SwatchMap, palette: Color[]): HSL | null {
+  if (swatches.Muted) return colorToHsl(swatches.Muted.color);
+  if (swatches.DarkMuted) return colorToHsl(swatches.DarkMuted.color);
+  // Swatch classification sometimes leaves soft roles empty — still use Thief data
+  if (swatches.DarkVibrant) return colorToHsl(swatches.DarkVibrant.color);
+  if (swatches.Vibrant) return colorToHsl(swatches.Vibrant.color);
+  if (palette.length > 0) return colorToHsl(palette[0]!);
   return null;
 }
 
@@ -362,102 +366,63 @@ function pickBgHues(swatches: SwatchMap, palette: Color[]): { primary: HSL; seco
   for (const c of palette) {
     const hsl = colorToHsl(c);
     const dh = Math.min(Math.abs(hsl.h - primary.h), 360 - Math.abs(hsl.h - primary.h));
-    if (dh >= 25 && hsl.s >= 10) {
+    if (dh >= 25 && hsl.s >= 8) {
       secondary = hsl;
       break;
     }
   }
   if (secondary === primary) {
-    const alt =
-      swatches.Muted?.color ??
-      swatches.Vibrant?.color ??
-      swatches.DarkVibrant?.color;
+    const alt = swatches.Muted?.color ?? swatches.Vibrant?.color ?? swatches.DarkVibrant?.color;
     if (alt) secondary = colorToHsl(alt);
   }
   return { primary, secondary };
 }
 
 /**
- * Build dark OLED theme from Color Thief.
- * Accent = Muted or DarkMuted only (then muteAccent). Soft fallback only if null.
+ * Build dark OLED theme from Color Thief Muted/DarkMuted.
+ *
+ * IMPORTANT: Color Thief "Muted" is *supposed* to be low-chroma. Do NOT treat
+ * low sat as "no color → pure white" — that made every album a white bar.
  */
 function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme | null {
   const accentSrc = pickAccentFromThief(swatches, palette);
   if (!accentSrc) return null;
 
   const { primary, secondary } = pickBgHues(swatches, palette);
-  const isGrayish = accentSrc.s < 14;
 
-  // Dark field from DarkMuted / DarkVibrant hues
-  const bgS = isGrayish
-    ? clamp(primary.s * 0.5, 2, 10)
-    : clamp(primary.s * 0.55, 14, 48);
-  const bgL = clamp(11 + (primary.l > 50 ? 2 : 0), 8, 14);
-  const edgeS = isGrayish
-    ? clamp(secondary.s * 0.4, 2, 8)
-    : clamp(secondary.s * 0.5, 12, 42);
-  const edgeL = clamp(bgL - 5, 4, 9);
-  const midS = clamp((bgS + edgeS) / 2, isGrayish ? 2 : 12, isGrayish ? 10 : 45);
+  const bgS = clamp(Math.max(primary.s, 8) * 0.5, 6, 40);
+  const bgL = clamp(10 + (primary.l > 50 ? 2 : 0), 7, 14);
+  const edgeS = clamp(Math.max(secondary.s, 6) * 0.45, 4, 36);
+  const edgeL = clamp(bgL - 4, 4, 10);
+  const midS = clamp((bgS + edgeS) / 2, 5, 38);
   const midL = clamp((bgL + edgeL) / 2 + 1, 6, 12);
 
-  const bgH = isGrayish ? 0 : primary.h;
-  const edgeH = isGrayish ? 0 : secondary.h;
+  const bgCenter = hslToString(primary.h, bgS, bgL);
+  const bgMid = hslToString(secondary.h, midS, midL);
+  const bgEdge = hslToString(secondary.h, edgeS, edgeL);
 
-  const bgCenter = hslToString(bgH, bgS, bgL);
-  const bgMid = hslToString(edgeH, midS, midL);
-  const bgEdge = hslToString(edgeH, edgeS, edgeL);
-
-  const midRgb = hslToRgb(edgeH, midS, midL);
+  const midRgb = hslToRgb(secondary.h, midS, midL);
   const texts = pickReadableText(midRgb);
 
-  // Always start from Muted/DarkMuted, then soften for OLED
-  let { h: accentH, s: accentS, l: accentL } = muteAccent(
-    accentSrc.h,
-    Math.max(accentSrc.s, isGrayish ? 0 : 12),
-    isGrayish ? 52 : 48
-  );
+  // Soften Muted color for OLED — keep its hue (this is the album match)
+  let { h: accentH, s: accentS, l: accentL } = muteAccent(accentSrc.h, accentSrc.s, accentSrc.l);
 
-  if (isGrayish) {
+  // Only replace *vivid* cool-blue with text white — not every low-sat blue-gray
+  if (isUnwantedBlueHue(accentH, accentS) && accentS >= 12) {
     accentH = 0;
     accentS = 0;
     accentL = 56;
   }
 
-  // Cool-blue leftovers → fact-text white
-  if (isUnwantedBlueHue(accentH, accentS)) {
-    return {
-      background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
-      factText: texts.text,
-      factMuted: texts.tertiary,
-      title: texts.text,
-      artist: texts.secondary,
-      meta: texts.tertiary,
-      sep: texts.tertiary,
-      progressTrack: 'rgba(242, 242, 242, 0.18)',
-      progressFill: TEXT_ACCENT,
-      dot: 'rgba(242, 242, 242, 0.35)',
-      dotActive: TEXT_ACCENT,
-      coverRing: 'rgba(242, 242, 242, 0.1)',
-    };
-  }
-
   let accentRgb = hslToRgb(accentH, accentS, accentL);
-  if (getContrastRatio(midRgb, accentRgb) < 2.8) {
-    accentL = Math.min(ACCENT_L_MAX + (isGrayish ? 10 : 0), 62);
+  if (getContrastRatio(midRgb, accentRgb) < 2.6) {
+    accentL = Math.min(accentL + 6, 58);
     accentRgb = hslToRgb(accentH, accentS, accentL);
   }
-  if (getContrastRatio(midRgb, accentRgb) < 2.8) {
-    accentS = clamp(accentS * 0.5, 0, 16);
-    accentL = isGrayish ? 60 : ACCENT_L_MAX;
-  }
 
-  const accent = isGrayish ? TEXT_ACCENT : hslToString(accentH, accentS, accentL);
-  const accentSoft = isGrayish
-    ? 'rgba(242, 242, 242, 0.35)'
-    : hslToString(accentH, accentS, accentL, 0.38);
-  const track = isGrayish
-    ? 'rgba(242, 242, 242, 0.18)'
-    : hslToString(accentH, clamp(bgS, 8, 22), clamp(bgL + 14, 14, 24), 0.45);
+  const accent = hslToString(accentH, accentS, accentL);
+  const accentSoft = hslToString(accentH, accentS, accentL, 0.4);
+  const track = hslToString(accentH, clamp(bgS, 6, 20), clamp(bgL + 12, 14, 24), 0.42);
 
   return {
     background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
@@ -471,9 +436,7 @@ function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme
     progressFill: accent,
     dot: accentSoft,
     dotActive: accent,
-    coverRing: isGrayish
-      ? 'rgba(242, 242, 242, 0.1)'
-      : hslToString(accentH, bgS, clamp(bgL + 10, 14, 24), 0.55),
+    coverRing: hslToString(accentH, clamp(bgS, 6, 24), clamp(bgL + 10, 14, 24), 0.5),
   };
 }
 
@@ -504,20 +467,26 @@ function sampleFromArtwork(url: string | null): void {
   img.onload = () => {
     if (gen !== sampleGeneration) return;
     try {
-      // Color Thief v3: OKLCH + Muted/DarkMuted/DarkVibrant… — trust fully when load works
-      // quality 8 = every 8th pixel (Pi-friendly); colorCount 8
-      const opts = { colorCount: 8, quality: 8, colorSpace: 'oklch' as const };
+      // Color Thief v3: OKLCH + Muted/DarkMuted (status bar). Pi-friendly quality.
+      const opts = { colorCount: 10, quality: 5, colorSpace: 'oklch' as const };
       const swatches = getSwatchesSync(img, opts);
       const palette = getPaletteSync(img, opts) ?? [];
 
       const built = buildRpiThemeFromThief(swatches, palette);
-      theme.value = built ?? makeFallbackTheme(seed);
-    } catch {
+      if (built) {
+        theme.value = built;
+      } else {
+        console.warn('[rpi-theme] Color Thief returned no usable swatches; soft fallback');
+        theme.value = makeFallbackTheme(seed);
+      }
+    } catch (err) {
+      console.warn('[rpi-theme] Color Thief failed; soft fallback', err);
       if (gen === sampleGeneration) theme.value = makeFallbackTheme(seed);
     }
   };
 
   img.onerror = () => {
+    console.warn('[rpi-theme] Artwork failed to load; soft fallback', url);
     if (gen === sampleGeneration) theme.value = makeFallbackTheme(seed);
   };
 
