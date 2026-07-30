@@ -7,7 +7,7 @@
  * - Now-playing strip (title, zone, progress, time) tinted from the same palette
  * - WCAG-oriented contrast: dark bg + light text; accent for progress/dots
  */
-import { computed, ref, watch, type CSSProperties } from 'vue';
+import { computed, ref, watch, onUnmounted, type CSSProperties } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
 import { useFacts } from '../composables/useFacts';
 import {
@@ -37,6 +37,130 @@ const trackRef = computed(() => props.track);
 const stateRef = computed(() => props.state);
 
 const { facts, currentFactIndex, currentFact, isLoading, error } = useFacts(trackRef, stateRef);
+
+/**
+ * Sequential fact transition (no overlap):
+ *   visible → fade out old → swap text (invisible) → fade in new
+ * Never shows two facts at once.
+ */
+const FADE_MS = 320;
+
+const displayFact = ref<string | null>(null);
+/** 0 = hidden, 1 = fully visible */
+const factOpacity = ref(1);
+const factPhase = ref<'idle' | 'out' | 'in'>('idle');
+
+let factFadeTimer: ReturnType<typeof setTimeout> | null = null;
+let factToken = 0;
+/** Queue the latest fact if a transition is already running */
+let pendingFact: string | null | undefined = undefined;
+
+function clearFactTimer(): void {
+  if (factFadeTimer !== null) {
+    clearTimeout(factFadeTimer);
+    factFadeTimer = null;
+  }
+}
+
+function setFactVisible(text: string | null): void {
+  displayFact.value = text;
+  factOpacity.value = text ? 1 : 0;
+  factPhase.value = 'idle';
+}
+
+function runFactTransition(next: string | null): void {
+  const token = ++factToken;
+  clearFactTimer();
+  pendingFact = undefined;
+
+  // First paint / no previous text — appear without a messy half-fade
+  if (!displayFact.value) {
+    displayFact.value = next;
+    factOpacity.value = next ? 1 : 0;
+    factPhase.value = 'idle';
+    return;
+  }
+
+  // Same text — nothing to do
+  if (displayFact.value === next) {
+    factOpacity.value = next ? 1 : 0;
+    factPhase.value = 'idle';
+    return;
+  }
+
+  // Phase 1: fade out current fact completely
+  factPhase.value = 'out';
+  factOpacity.value = 0;
+
+  factFadeTimer = setTimeout(() => {
+    if (token !== factToken) return;
+
+    // Swap while fully invisible (no overlap with the old string)
+    displayFact.value = next;
+    factPhase.value = 'in';
+
+    // Next frame: fade in (lets the browser apply opacity 0 with new text first)
+    requestAnimationFrame(() => {
+      if (token !== factToken) return;
+      requestAnimationFrame(() => {
+        if (token !== factToken) return;
+        factOpacity.value = next ? 1 : 0;
+
+        factFadeTimer = setTimeout(() => {
+          if (token !== factToken) return;
+          factPhase.value = 'idle';
+          factFadeTimer = null;
+
+          // Drain queue if another fact arrived during the transition
+          if (pendingFact !== undefined) {
+            const queued = pendingFact;
+            pendingFact = undefined;
+            if (queued !== displayFact.value) {
+              runFactTransition(queued);
+            }
+          }
+        }, FADE_MS);
+      });
+    });
+  }, FADE_MS);
+}
+
+watch(
+  currentFact,
+  (next) => {
+    // While loading/errors, still drive the slot
+    if (factPhase.value !== 'idle') {
+      pendingFact = next;
+      return;
+    }
+    if (displayFact.value === next) return;
+    if (!displayFact.value && next) {
+      setFactVisible(next);
+      return;
+    }
+    runFactTransition(next);
+  },
+  { immediate: true }
+);
+
+// Reset fact slot immediately on track change (avoid fading between tracks)
+watch(
+  () => (props.track ? `${props.track.artist}::${props.track.title}` : null),
+  () => {
+    factToken++;
+    clearFactTimer();
+    pendingFact = undefined;
+    // Next currentFact watch will set content; clear so we don't cross-fade across tracks
+    displayFact.value = null;
+    factOpacity.value = 0;
+    factPhase.value = 'idle';
+  }
+);
+
+onUnmounted(() => {
+  factToken++;
+  clearFactTimer();
+});
 
 export interface RpiTheme {
   /** CSS background (gradient) */
@@ -254,8 +378,12 @@ const layoutStyle = computed(
           </div>
 
           <template v-else>
-            <p v-if="isLoading" class="loading-hint">Loading facts…</p>
-            <p v-else-if="currentFact" class="fact-text">{{ currentFact }}</p>
+            <p v-if="isLoading && !displayFact" class="loading-hint">Loading facts…</p>
+            <p
+              v-else-if="displayFact"
+              class="fact-text"
+              :style="{ opacity: factOpacity }"
+            >{{ displayFact }}</p>
             <p v-else-if="error && error.type === 'no-key'" class="error-hint">
               Configure API key in <a href="/admin">Admin</a>
             </p>
@@ -353,6 +481,10 @@ const layoutStyle = computed(
   max-width: 20em;
   color: var(--rpi-fact, #f5f5f5);
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+  /* Sequential fade only — single layer, never two facts overlapping */
+  transition: opacity 0.32s ease-in-out;
+  will-change: opacity;
+  backface-visibility: hidden;
 }
 
 .loading-hint,
@@ -378,6 +510,7 @@ const layoutStyle = computed(
   height: clamp(8px, 0.9cqi, 18px);
   border-radius: 50%;
   background: var(--rpi-dot, rgba(245, 245, 245, 0.35));
+  transition: background-color 0.32s ease-in-out;
 }
 
 .dot.active {

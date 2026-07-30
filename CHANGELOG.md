@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.7] - 2026-07-28
+
+### Changed
+
+- **RPi Facts Carousel**: sequential fact transitions — old fact fully fades out, then the new fact fades in (no dual-text overlap). Dots ease with the same timing.
+
 ## [1.9.6] - 2026-07-28
 
 ### Changed
