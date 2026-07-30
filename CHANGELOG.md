@@ -1,5 +1,7 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
 ## [2.0.0] - 2026-07-30
 
 ### Changed
@@ -11,7 +13,7 @@
 - **Facts cache** import/export in Admin, longer cache TTL, robust fact JSON parsing, configurable max tokens.
 - Multi-arch Docker images (`linux/amd64` + `linux/arm64`).
 
-All notable changes to this project will be documented in this file.
+Future patches: **2.0.1**, **2.0.2**, …
 
 ## [1.9.23] - 2026-07-30
 
