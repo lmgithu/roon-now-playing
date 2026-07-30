@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.10] - 2026-07-28
+
+### Changed
+
+- **RPi Facts Carousel**: soft seeded fallback palette is used for **both** hard failures (no/failed art load) **and** neutral B&W samples — same per-track variety (stone/sage/slate gray/etc.). Chromatic album-art themes still use real extracted hues.
+
 ## [1.9.9] - 2026-07-28
 
 ### Fixed

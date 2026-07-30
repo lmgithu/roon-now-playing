@@ -293,76 +293,53 @@ function pickAccentSource(dominant: HSL, palette: HSL[]): HSL {
 }
 
 /**
- * Build a dark, album-linked theme. Background stays OLED-safe (low L);
- * accents (progress, active dots) use a brighter tint of the art hue.
- *
- * Important: low-sat / B&W art must NOT force a cool blue accent. The old
- * `max(s, 40)` boost on extractDominantColor's neutral h=220 produced #6d87ba
- * even when sampling "succeeded".
+ * Build a dark, album-linked theme when art has real chroma.
+ * Neutral / B&W samples use makeFallbackTheme(seed) instead (same soft
+ * per-track palette as hard sampling failures — no blue sat-boost).
  */
 function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
   const accentSrc = pickAccentSource(dominant, palette);
-  const isNeutral = accentSrc.s < 14;
 
   const secondary =
     palette.find((c) => {
       const dh = Math.min(Math.abs(c.h - dominant.h), 360 - Math.abs(c.h - dominant.h));
       return dh >= 25 && c.s >= 12;
-    }) ?? (isNeutral ? dominant : accentSrc);
+    }) ?? accentSrc;
 
-  // Dark backgrounds — keep neutral art nearly gray (no fake blue field)
-  const bgS = isNeutral
-    ? clamp(accentSrc.s * 0.4, 4, 12)
-    : clamp(dominant.s * 0.55, 14, 48);
+  // Dark backgrounds from dominant + secondary hues
+  const bgS = clamp(dominant.s * 0.55, 14, 48);
   const bgL = clamp(11 + (dominant.l > 50 ? 2 : 0), 8, 14);
-  const edgeS = isNeutral
-    ? clamp(bgS * 0.8, 3, 10)
-    : clamp(secondary.s * 0.5, 12, 42);
+  const edgeS = clamp(secondary.s * 0.5, 12, 42);
   const edgeL = clamp(bgL - 5, 4, 9);
-  const midS = clamp((bgS + edgeS) / 2, isNeutral ? 3 : 12, isNeutral ? 12 : 45);
+  const midS = clamp((bgS + edgeS) / 2, 12, 45);
   const midL = clamp((bgL + edgeL) / 2 + 1, 6, 12);
 
-  const bgH = isNeutral ? 0 : dominant.h; // pure gray-ish when neutral
-  const edgeH = isNeutral ? 0 : secondary.h;
+  const bgCenter = hslToString(dominant.h, bgS, bgL);
+  const bgMid = hslToString(secondary.h, midS, midL);
+  const bgEdge = hslToString(secondary.h, edgeS, edgeL);
 
-  const bgCenter = hslToString(bgH, bgS, bgL);
-  const bgMid = hslToString(edgeH, midS, midL);
-  const bgEdge = hslToString(edgeH, edgeS, edgeL);
-
-  const midRgb = hslToRgb(edgeH, midS, midL);
+  const midRgb = hslToRgb(secondary.h, midS, midL);
   const texts = pickReadableText(midRgb);
 
-  // --- Accent (progress / dots) ---
-  let accentH = isNeutral ? 0 : accentSrc.h;
-  let accentS: number;
-  let accentL: number;
-
-  if (isNeutral) {
-    // Quiet silver-gray — never boost into blue
-    accentS = 0;
-    accentL = 62;
-  } else {
-    // Use real art chroma; mild lift only (no floor of 40)
-    accentS = clamp(accentSrc.s * 0.85, 18, 68);
-    accentL = 56;
-  }
+  // Accent from most chromatic swatch; mild lift only (no floor of 40)
+  let accentH = accentSrc.h;
+  let accentS = clamp(accentSrc.s * 0.85, 18, 68);
+  let accentL = 56;
 
   let accentRgb = hslToRgb(accentH, accentS, accentL);
   if (getContrastRatio(midRgb, accentRgb) < 3) {
-    accentL = isNeutral ? 72 : 66;
+    accentL = 66;
     accentRgb = hslToRgb(accentH, accentS, accentL);
   }
   if (getContrastRatio(midRgb, accentRgb) < 3) {
-    accentS = isNeutral ? 0 : clamp(accentS, 10, 40);
+    accentS = clamp(accentS, 10, 40);
     accentL = 78;
     accentRgb = hslToRgb(accentH, accentS, accentL);
   }
 
   const accent = hslToString(accentH, accentS, accentL);
   const accentSoft = hslToString(accentH, accentS, accentL, 0.38);
-  const track = isNeutral
-    ? hslToString(0, 0, 24, 0.45)
-    : hslToString(accentH, clamp(bgS, 8, 28), clamp(bgL + 16, 16, 28), 0.45);
+  const track = hslToString(accentH, clamp(bgS, 8, 28), clamp(bgL + 16, 16, 28), 0.45);
 
   return {
     background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
@@ -376,22 +353,35 @@ function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
     progressFill: accent,
     dot: accentSoft,
     dotActive: accent,
-    coverRing: isNeutral
-      ? 'rgba(255, 255, 255, 0.1)'
-      : hslToString(accentH, bgS, clamp(bgL + 10, 14, 24), 0.55),
+    coverRing: hslToString(accentH, bgS, clamp(bgL + 10, 14, 24), 0.55),
   };
+}
+
+function themeSeedFromTrackOrUrl(url: string | null): string {
+  if (props.track) {
+    return `${props.track.artist}::${props.track.album}::${props.track.title}`;
+  }
+  if (url) return url;
+  return `rnd:${Date.now()}`;
+}
+
+/** True when the sample has no usable chroma (B&W / near-gray dark covers). */
+function isNeutralSample(dominant: HSL, palette: HSL[]): boolean {
+  const accentSrc = pickAccentSource(dominant, palette);
+  if (accentSrc.s >= 14) return false;
+  // Also treat as neutral if every palette swatch is weak
+  const maxSat = Math.max(dominant.s, ...palette.map((c) => c.s), 0);
+  return maxSat < 14;
 }
 
 let sampleGeneration = 0;
 
 function sampleFromArtwork(url: string | null): void {
   const gen = ++sampleGeneration;
+  const seed = themeSeedFromTrackOrUrl(url);
 
   if (!url) {
-    // Seed with track id if present so the soft fallback varies per song
-    const seed = props.track
-      ? `${props.track.artist}::${props.track.album}::${props.track.title}`
-      : `rnd:${Date.now()}`;
+    // Hard fallback: no artwork at all
     theme.value = makeFallbackTheme(seed);
     return;
   }
@@ -410,22 +400,29 @@ function sampleFromArtwork(url: string | null): void {
       canvas.height = size;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) {
-        theme.value = makeFallbackTheme(url);
+        theme.value = makeFallbackTheme(seed);
         return;
       }
       ctx.drawImage(img, 0, 0, size, size);
       const imageData = ctx.getImageData(0, 0, size, size);
       const dominant = extractDominantColor(imageData);
       const palette = extractColorPalette(imageData, 5);
-      // Successful extraction path — unchanged algorithm
+
+      // B&W / near-gray: same soft seeded palette as hard fallbacks (varies per track)
+      if (isNeutralSample(dominant, palette)) {
+        theme.value = makeFallbackTheme(seed);
+        return;
+      }
+
+      // Real chroma: album-linked theme
       theme.value = buildRpiTheme(dominant, palette);
     } catch {
-      if (gen === sampleGeneration) theme.value = makeFallbackTheme(url);
+      if (gen === sampleGeneration) theme.value = makeFallbackTheme(seed);
     }
   };
 
   img.onerror = () => {
-    if (gen === sampleGeneration) theme.value = makeFallbackTheme(url);
+    if (gen === sampleGeneration) theme.value = makeFallbackTheme(seed);
   };
 
   img.src = url;
