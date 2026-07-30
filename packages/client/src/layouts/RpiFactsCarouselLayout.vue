@@ -693,6 +693,20 @@ const layoutStyle = computed(
   overflow: hidden;
 }
 
+/* Lighter subtitle stack for smaller NP strip type (same idea as fact text, less glow) */
+.np-title,
+.np-artist,
+.np-sep,
+.zone-name,
+.time-info,
+.loading-hint,
+.error-hint,
+.zone-hint {
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.9),
+    0 1px 4px rgba(0, 0, 0, 0.55);
+}
+
 .np-title {
   font-weight: var(--font-semibold);
   color: var(--rpi-title, #f5f5f5);

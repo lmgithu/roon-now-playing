@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.12] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: lighter subtitle-style shadow on title, artist, zone, time, and related strip text (full stack remains on hero facts).
+
 ## [1.9.11] - 2026-07-30
 
 ### Changed
