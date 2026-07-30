@@ -51,3 +51,7 @@ See [lmgithu/lmgt-app-store](https://github.com/lmgithu/lmgt-app-store) → `lmg
 ## Security
 
 Do not commit OpenRouter/OpenAI keys. Prefer env vars or the Admin UI. If a key was ever hardcoded in a helper script, **rotate it**.
+
+## Docker platforms
+
+CI builds **linux/amd64 only** (Umbrel Home / Intel N100 class). No arm64/QEMU.
