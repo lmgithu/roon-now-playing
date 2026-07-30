@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.14] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: subtler cover art corner radius (less rounded).
+
 ## [1.9.13] - 2026-07-30
 
 ### Changed

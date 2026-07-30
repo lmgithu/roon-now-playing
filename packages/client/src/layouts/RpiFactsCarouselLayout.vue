@@ -680,7 +680,7 @@ const layoutStyle = computed(
   flex: 0 0 auto;
   width: clamp(72px, 12cqi, 160px);
   height: clamp(72px, 12cqi, 160px);
-  border-radius: clamp(6px, 0.6cqi, 12px);
+  border-radius: clamp(2px, 0.22cqi, 5px);
   overflow: hidden;
   background: var(--rpi-cover-ring, rgba(255, 255, 255, 0.08));
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
