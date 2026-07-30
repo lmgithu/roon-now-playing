@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.9] - 2026-07-28
+
+### Fixed
+
+- **RPi Facts Carousel**: dark / B&W covers no longer map to `#6d87ba` blue. Sampling was succeeding, but low-sat art was assigned hue 220 and then sat-boosted with `max(s, 40)`. Neutrals now stay gray; chromatic accents prefer the most saturated palette swatch (so dark reds can win). CSS default progress fill no longer blue.
+
 ## [1.9.8] - 2026-07-28
 
 ### Changed

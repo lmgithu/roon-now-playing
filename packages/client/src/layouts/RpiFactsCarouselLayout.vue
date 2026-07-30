@@ -270,52 +270,99 @@ function pickReadableText(bg: RGB): { text: string; secondary: string; tertiary:
 }
 
 /**
+ * Pick the most chromatic palette swatch for accents.
+ * Dark covers often yield a low-sat "dominant"; reds/etc. live in secondary buckets.
+ */
+function pickAccentSource(dominant: HSL, palette: HSL[]): HSL {
+  const candidates = [dominant, ...palette].filter((c) => c.s >= 12);
+  if (candidates.length === 0) {
+    return dominant;
+  }
+  // Prefer real chroma; slight bonus for mid lightness (not pure black/white pixels)
+  let best = candidates[0]!;
+  let bestScore = -1;
+  for (const c of candidates) {
+    const midL = 1 - Math.abs(c.l - 45) / 50;
+    const score = c.s * (0.65 + 0.35 * clamp(midL, 0, 1));
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/**
  * Build a dark, album-linked theme. Background stays OLED-safe (low L);
- * accents (progress, active dots) use a brighter tint of the same hue.
+ * accents (progress, active dots) use a brighter tint of the art hue.
+ *
+ * Important: low-sat / B&W art must NOT force a cool blue accent. The old
+ * `max(s, 40)` boost on extractDominantColor's neutral h=220 produced #6d87ba
+ * even when sampling "succeeded".
  */
 function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
+  const accentSrc = pickAccentSource(dominant, palette);
+  const isNeutral = accentSrc.s < 14;
+
   const secondary =
     palette.find((c) => {
       const dh = Math.min(Math.abs(c.h - dominant.h), 360 - Math.abs(c.h - dominant.h));
       return dh >= 25 && c.s >= 12;
-    }) ?? dominant;
+    }) ?? (isNeutral ? dominant : accentSrc);
 
-  // Force dark backgrounds (deeper than default generateColors) for OLED + white facts
-  const bgS = clamp(dominant.s * 0.55, 18, 48);
+  // Dark backgrounds — keep neutral art nearly gray (no fake blue field)
+  const bgS = isNeutral
+    ? clamp(accentSrc.s * 0.4, 4, 12)
+    : clamp(dominant.s * 0.55, 14, 48);
   const bgL = clamp(11 + (dominant.l > 50 ? 2 : 0), 8, 14);
-  const edgeS = clamp(secondary.s * 0.5, 14, 42);
+  const edgeS = isNeutral
+    ? clamp(bgS * 0.8, 3, 10)
+    : clamp(secondary.s * 0.5, 12, 42);
   const edgeL = clamp(bgL - 5, 4, 9);
-  const midS = clamp((bgS + edgeS) / 2, 16, 45);
+  const midS = clamp((bgS + edgeS) / 2, isNeutral ? 3 : 12, isNeutral ? 12 : 45);
   const midL = clamp((bgL + edgeL) / 2 + 1, 6, 12);
 
-  const bgCenter = hslToString(dominant.h, bgS, bgL);
-  const bgMid = hslToString(secondary.h, midS, midL);
-  const bgEdge = hslToString(secondary.h, edgeS, edgeL);
+  const bgH = isNeutral ? 0 : dominant.h; // pure gray-ish when neutral
+  const edgeH = isNeutral ? 0 : secondary.h;
 
-  // Sample contrast against the "average" dark field (mid stop)
-  const midRgb = hslToRgb(secondary.h, midS, midL);
+  const bgCenter = hslToString(bgH, bgS, bgL);
+  const bgMid = hslToString(edgeH, midS, midL);
+  const bgEdge = hslToString(edgeH, edgeS, edgeL);
+
+  const midRgb = hslToRgb(edgeH, midS, midL);
   const texts = pickReadableText(midRgb);
 
-  // Accent for progress / active dots — brighter, still on-hue
-  let accentS = clamp(Math.max(dominant.s, 40) * 0.9, 35, 72);
-  let accentL = 58;
-  let accentRgb = hslToRgb(dominant.h, accentS, accentL);
-  // Ensure accent is visible on dark bg (prefer ≥ 3:1 for large UI chrome)
-  if (getContrastRatio(midRgb, accentRgb) < 3) {
-    accentL = 68;
-    accentS = clamp(accentS + 5, 35, 75);
-    accentRgb = hslToRgb(dominant.h, accentS, accentL);
-  }
-  if (getContrastRatio(midRgb, accentRgb) < 3) {
-    // Fall back to near-white with a light tint
-    accentS = 30;
-    accentL = 82;
-    accentRgb = hslToRgb(dominant.h, accentS, accentL);
+  // --- Accent (progress / dots) ---
+  let accentH = isNeutral ? 0 : accentSrc.h;
+  let accentS: number;
+  let accentL: number;
+
+  if (isNeutral) {
+    // Quiet silver-gray — never boost into blue
+    accentS = 0;
+    accentL = 62;
+  } else {
+    // Use real art chroma; mild lift only (no floor of 40)
+    accentS = clamp(accentSrc.s * 0.85, 18, 68);
+    accentL = 56;
   }
 
-  const accent = hslToString(dominant.h, accentS, accentL);
-  const accentSoft = hslToString(dominant.h, accentS, accentL, 0.38);
-  const track = hslToString(dominant.h, clamp(bgS, 10, 30), clamp(bgL + 18, 18, 28), 0.45);
+  let accentRgb = hslToRgb(accentH, accentS, accentL);
+  if (getContrastRatio(midRgb, accentRgb) < 3) {
+    accentL = isNeutral ? 72 : 66;
+    accentRgb = hslToRgb(accentH, accentS, accentL);
+  }
+  if (getContrastRatio(midRgb, accentRgb) < 3) {
+    accentS = isNeutral ? 0 : clamp(accentS, 10, 40);
+    accentL = 78;
+    accentRgb = hslToRgb(accentH, accentS, accentL);
+  }
+
+  const accent = hslToString(accentH, accentS, accentL);
+  const accentSoft = hslToString(accentH, accentS, accentL, 0.38);
+  const track = isNeutral
+    ? hslToString(0, 0, 24, 0.45)
+    : hslToString(accentH, clamp(bgS, 8, 28), clamp(bgL + 16, 16, 28), 0.45);
 
   return {
     background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
@@ -329,7 +376,9 @@ function buildRpiTheme(dominant: HSL, palette: HSL[]): RpiTheme {
     progressFill: accent,
     dot: accentSoft,
     dotActive: accent,
-    coverRing: hslToString(dominant.h, bgS, clamp(bgL + 10, 14, 24), 0.55),
+    coverRing: isNeutral
+      ? 'rgba(255, 255, 255, 0.1)'
+      : hslToString(accentH, bgS, clamp(bgL + 10, 14, 24), 0.55),
   };
 }
 
@@ -494,8 +543,8 @@ const layoutStyle = computed(
   position: relative;
   width: 100%;
   height: 100%;
-  /* Fallback before first sample */
-  background: radial-gradient(ellipse at 28% 85%, hsl(220, 22%, 12%) 0%, hsl(220, 16%, 4%) 100%);
+  /* Fallback before first sample — neutral dark, not blue */
+  background: radial-gradient(ellipse at 28% 85%, hsl(0, 0%, 11%) 0%, hsl(0, 0%, 4%) 100%);
   overflow: hidden;
   isolation: isolate;
 }
@@ -669,7 +718,7 @@ const layoutStyle = computed(
 .progress-fill {
   height: 100%;
   width: 100%;
-  background: var(--rpi-progress-fill, hsl(210, 55%, 62%));
+  background: var(--rpi-progress-fill, hsl(0, 0%, 62%));
   transform-origin: left center;
   /* scaleX is GPU-friendly; linear transition bridges 100ms seek ticks */
   transform: scaleX(var(--rpi-progress, 0));
