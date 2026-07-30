@@ -335,38 +335,17 @@ function colorToHsl(c: Color): HSL {
 }
 
 /**
- * Pick progress-bar accent from Color Thief semantic swatches.
- * Prefer Muted / DarkMuted first (including soft grays on B&W art), then
- * DarkVibrant / Vibrant. Trust Color Thief rather than our own neutral gate.
+ * Progress-bar accent: Color Thief Muted / DarkMuted only (all albums).
+ * No Vibrant path — softer, more consistent status chrome.
+ * Returns null only when both swatches are missing (true extraction gap).
  */
-function pickAccentFromThief(swatches: SwatchMap, palette: Color[]): HSL | null {
-  // Soft roles: accept low sat (true grays from mono covers)
-  const softRoles = ['Muted', 'DarkMuted'] as const;
-  for (const role of softRoles) {
-    const sw = swatches[role];
-    if (sw) return colorToHsl(sw.color);
-  }
-  // Chromatic roles: need a bit of sat
-  const richRoles = ['DarkVibrant', 'Vibrant', 'LightVibrant', 'LightMuted'] as const;
-  for (const role of richRoles) {
-    const sw = swatches[role];
-    if (!sw) continue;
-    const hsl = colorToHsl(sw.color);
-    if (hsl.s >= 8) return hsl;
-  }
-  // Palette: any swatch; prefer some chroma when available
-  let best: HSL | null = null;
-  let bestScore = -1;
-  for (const c of palette) {
-    const hsl = colorToHsl(c);
-    const midL = 1 - Math.abs(hsl.l - 45) / 50;
-    const score = hsl.s * (0.65 + 0.35 * clamp(midL, 0, 1)) + c.population * 0.001;
-    if (score > bestScore) {
-      bestScore = score;
-      best = hsl;
-    }
-  }
-  return best;
+function pickAccentFromThief(swatches: SwatchMap, _palette: Color[]): HSL | null {
+  // Prefer Muted (softer) then DarkMuted (deeper mono / dark covers)
+  const muted = swatches.Muted;
+  if (muted) return colorToHsl(muted.color);
+  const darkMuted = swatches.DarkMuted;
+  if (darkMuted) return colorToHsl(darkMuted.color);
+  return null;
 }
 
 /** Background hues from dark semantic swatches + palette. */
@@ -399,18 +378,17 @@ function pickBgHues(swatches: SwatchMap, palette: Color[]): { primary: HSL; seco
 }
 
 /**
- * Build dark OLED theme from Color Thief swatches/palette.
- * Trust Muted/DarkMuted even on B&W; only soft-seed fallback when Thief fails entirely.
- * Accents still pass muteAccent so progress never goes neon.
+ * Build dark OLED theme from Color Thief.
+ * Accent = Muted or DarkMuted only (then muteAccent). Soft fallback only if null.
  */
 function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme | null {
   const accentSrc = pickAccentFromThief(swatches, palette);
   if (!accentSrc) return null;
 
   const { primary, secondary } = pickBgHues(swatches, palette);
-  const isGrayish = accentSrc.s < 14 && primary.s < 14;
+  const isGrayish = accentSrc.s < 14;
 
-  // Dark field from DarkMuted/DarkVibrant; keep nearly gray when mono
+  // Dark field from DarkMuted / DarkVibrant hues
   const bgS = isGrayish
     ? clamp(primary.s * 0.5, 2, 10)
     : clamp(primary.s * 0.55, 14, 48);
@@ -432,20 +410,20 @@ function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme
   const midRgb = hslToRgb(edgeH, midS, midL);
   const texts = pickReadableText(midRgb);
 
-  // Muted swatches: keep low sat; chromatic: mute for OLED
-  let accentH = accentSrc.h;
-  let accentS = accentSrc.s;
-  let accentL = accentSrc.l;
-  if (isGrayish || accentS < 14) {
-    // Silver from Thief gray / DarkMuted — align with fact text family
+  // Always start from Muted/DarkMuted, then soften for OLED
+  let { h: accentH, s: accentS, l: accentL } = muteAccent(
+    accentSrc.h,
+    Math.max(accentSrc.s, isGrayish ? 0 : 12),
+    isGrayish ? 52 : 48
+  );
+
+  if (isGrayish) {
     accentH = 0;
     accentS = 0;
-    accentL = clamp(accentSrc.l > 40 ? 58 : 52, 48, 62);
-  } else {
-    ({ h: accentH, s: accentS, l: accentL } = muteAccent(accentSrc.h, accentSrc.s * 0.85, 48));
+    accentL = 56;
   }
 
-  // Cool-blue leftovers → fact-text white (user preference)
+  // Cool-blue leftovers → fact-text white
   if (isUnwantedBlueHue(accentH, accentS)) {
     return {
       background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
@@ -473,9 +451,7 @@ function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme
     accentL = isGrayish ? 60 : ACCENT_L_MAX;
   }
 
-  const accent = isGrayish
-    ? TEXT_ACCENT
-    : hslToString(accentH, accentS, accentL);
+  const accent = isGrayish ? TEXT_ACCENT : hslToString(accentH, accentS, accentL);
   const accentSoft = isGrayish
     ? 'rgba(242, 242, 242, 0.35)'
     : hslToString(accentH, accentS, accentL, 0.38);

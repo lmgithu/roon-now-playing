@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.20] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: progress accents use Color Thief **Muted / DarkMuted only** for every album; soft seeded fallback only when those swatches are missing or extraction fails.
+
 ## [1.9.19] - 2026-07-30
 
 ### Changed
