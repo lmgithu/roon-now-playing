@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.19] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel**: always trust Color Thief when art loads (including B&W via Muted/DarkMuted). Soft seeded palette only if there is no image or extraction fails.
+
 ## [1.9.18] - 2026-07-30
 
 ### Changed
