@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.1] - 2026-07-30
+
+### Changed
+
+- **RPi Facts Carousel:** stable fact quote column (`width: min(68cqi, 34em)`) instead of content shrink-wrap, so short and long facts share the same optical frame (~68% of screen on TV). Status strip still full safe-zone width (~88%).
+- Added optional **`scripts/plex-to-now-playing.sh`** (+ systemd unit) to push Plex music sessions into the External Sources API.
+
 ## [2.0.0] - 2026-07-30
 
 ### Changed
@@ -13,7 +20,7 @@ All notable changes to this project will be documented in this file.
 - **Facts cache** import/export in Admin, longer cache TTL, robust fact JSON parsing, configurable max tokens.
 - Multi-arch Docker images (`linux/amd64` + `linux/arm64`).
 
-Future patches: **2.0.1**, **2.0.2**, …
+Future patches: **2.0.2**, **2.0.3**, …
 
 ## [1.9.23] - 2026-07-30
 

@@ -688,7 +688,16 @@ const layoutStyle = computed(
   font-weight: var(--font-semibold);
   line-height: var(--leading-snug);
   margin: 0;
-  max-width: 20em;
+  /*
+   * Stable quote column (not content shrink-wrap).
+   * ~68% of the layout container — slightly narrower than the ~88% status
+   * strip so hierarchy stays clear, but wide enough for TV / wall viewing.
+   * 34em soft-caps measure on ultrawide; 100% never overflows the safe zone.
+   * text-align:center keeps short lines optically centered in the column.
+   */
+  width: min(68cqi, 34em);
+  max-width: 100%;
+  box-sizing: border-box;
   color: var(--rpi-fact, #f5f5f5);
   /* Subtitle-style stack: crisp edge + soft halo (TV-readable, no CSS filter) */
   text-shadow:
@@ -891,8 +900,10 @@ const layoutStyle = computed(
     height: clamp(64px, 18cqi, 110px);
   }
 
+  /* Narrow screens: use most of the safe column; still fixed-width frame */
   .fact-text {
-    max-width: 22em;
+    width: min(90%, 28em);
+    max-width: 100%;
   }
 }
 </style>

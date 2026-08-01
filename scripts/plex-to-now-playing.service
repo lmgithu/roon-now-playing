@@ -1,0 +1,20 @@
+[Unit]
+Description=Plex → Roon Now Playing bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Change this path if you install the script elsewhere on the Pi
+ExecStart=/home/pi/plex-to-now-playing.sh
+Restart=always
+RestartSec=5
+# Optional: if curl/jq live in a non-default path on some images
+# Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+# Logs: journalctl -u plex-to-now-playing -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
