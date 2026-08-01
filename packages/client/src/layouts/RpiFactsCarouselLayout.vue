@@ -5,7 +5,7 @@
  * Color system (Color Thief → single album hue, staged by role):
  * - Pick one chromatic hue from the cover (prefer Muted/LightMuted agreement)
  * - Background / facts / strip / progress all share that H at different S/L
- * - Strip text stays near-white (tiny tint); progress is the clear accent
+ * - Strip + facts: same H with readable album tint; progress is the bolder accent
  * - Soft neutral fallback only when art is gray or sampling fails
  * - Anti-neon clamps; no dual fighting tints (e.g. cream facts + purple dock)
  */
@@ -406,13 +406,14 @@ function pickAlbumHue(swatches: SwatchMap, palette: Color[]): HSL | null {
   return lightMuted ?? muted ?? candidates[0] ?? null;
 }
 
-/** Ensure light text stays readable on the dark mid-field. */
+/** Ensure light text stays readable on the dark mid-field (preserve tint). */
 function ensureTextOn(midRgb: RGB, t: HSL, minRatio: number): HSL {
   let cur = { ...t };
   for (let i = 0; i < 5; i++) {
     if (getContrastRatio(midRgb, hslToRgb(cur.h, cur.s, cur.l)) >= minRatio) break;
-    cur.l = Math.min(94, cur.l + 4);
-    cur.s = Math.max(0, cur.s * 0.88);
+    cur.l = Math.min(93, cur.l + 3);
+    // Prefer lifting L over killing saturation so album hue stays visible
+    cur.s = Math.max(0, cur.s * 0.96);
   }
   return cur;
 }
@@ -467,10 +468,11 @@ function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme
     barL = Math.min(58, barL + 8);
   }
 
-  // --- Facts: soft ivory with album temperature ---
+  // --- Facts: soft tinted light with clear album temperature (not chalk white) ---
+  // Slightly lower L + higher S makes hue readable at couch distance without neon.
   let factH = H;
-  let factS = chromatic ? clamp(baseS * 0.32, 10, 16) : 0;
-  let factL = 88;
+  let factS = chromatic ? clamp(baseS * 0.52, 14, 26) : 0;
+  let factL = 84;
   if (!chromatic) {
     factH = 0;
     factS = 0;
@@ -478,19 +480,30 @@ function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme
   }
   const fact = ensureTextOn(midRgb, { h: factH, s: factS, l: factL }, 4.5);
 
-  // --- Strip: near-white ladder, tiny same-hue bias (not muddy Muted text) ---
-  let stripS = chromatic ? clamp(baseS * 0.18, 4, 10) : 0;
-  const title = ensureTextOn(midRgb, { h: H, s: stripS, l: 93 }, 4.5);
-  // Artist / meta via opacity for clean hierarchy (same temperature)
-  const artistColor = hslCss(title.h, title.s, Math.min(title.l, 90), 0.78);
-  const metaColor = hslCss(title.h, clamp(title.s * 0.85, 0, 8), Math.min(title.l, 88), 0.62);
-  const sepColor = hslCss(title.h, clamp(title.s * 0.7, 0, 6), Math.min(title.l, 86), 0.42);
+  // --- Strip: same album hue, readable ladder (stronger tint than pure white) ---
+  // Progress/dots stay the bolder accent; strip is lighter but clearly related.
+  let stripS = chromatic ? clamp(baseS * 0.42, 10, 20) : 0;
+  const title = ensureTextOn(midRgb, { h: H, s: stripS, l: 88 }, 4.5);
+  const artist = ensureTextOn(
+    midRgb,
+    { h: H, s: chromatic ? clamp(stripS * 0.9, 8, 18) : 0, l: 80 },
+    3.5
+  );
+  const meta = ensureTextOn(
+    midRgb,
+    { h: H, s: chromatic ? clamp(stripS * 0.75, 6, 14) : 0, l: 74 },
+    3.0
+  );
+  // Soft hierarchy via alpha on top of tinted values
+  const artistColor = hslCss(artist.h, artist.s, artist.l, 0.9);
+  const metaColor = hslCss(meta.h, meta.s, meta.l, 0.78);
+  const sepColor = hslCss(meta.h, clamp(meta.s * 0.85, 0, 12), meta.l, 0.5);
 
   const progressFill = hslCss(barH, barS, barL);
   const progressTrack = hslCss(barH, clamp(barS, 0, 16), clamp(bgL + 12, 16, 24), 0.32);
-  // Idle dots: soft neutral (not purple-gray mud); active = bar
+  // Idle dots: soft album-tinted (active remains bar) — leave accent balance as-is
   const dotIdle = chromatic
-    ? hslCss(H, clamp(stripS, 0, 8), 90, 0.28)
+    ? hslCss(H, clamp(stripS * 0.6, 0, 12), 88, 0.3)
     : 'rgba(242, 242, 242, 0.28)';
 
   return {

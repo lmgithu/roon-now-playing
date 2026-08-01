@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.3] - 2026-08-01
+
+### Changed
+
+- **RPi Facts Carousel:** stronger album tint on fact quote and strip text (title/artist/meta) so type reflects cover temperature more clearly; progress bar and active dots unchanged as the bolder accent.
+
 ## [2.0.2] - 2026-08-01
 
 ### Changed
