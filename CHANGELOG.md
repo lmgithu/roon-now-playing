@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.11] - 2026-08-01
+
+### Changed
+
+- **Progress bar:** even subtler leading-edge sheen (tip brightness matches former ~75% stop).
+
 ## [2.0.10] - 2026-08-01
 
 ### Changed

@@ -909,14 +909,14 @@ const layoutStyle = computed(
 .progress-fill {
   height: 100%;
   width: 100%;
-  /* Soft sheen: darker at origin → slightly lighter at the leading edge (playhead) */
+  /* Soft sheen: darker at origin → very subtle lift at the leading edge */
   background-color: var(--rpi-progress-fill, #f2f2f2);
   background-image: linear-gradient(
     90deg,
-    rgba(0, 0, 0, 0.12) 0%,
-    rgba(255, 255, 255, 0) 42%,
-    rgba(255, 255, 255, 0.05) 72%,
-    rgba(255, 255, 255, 0.14) 100%
+    rgba(0, 0, 0, 0.1) 0%,
+    rgba(255, 255, 255, 0) 45%,
+    rgba(255, 255, 255, 0.03) 75%,
+    rgba(255, 255, 255, 0.05) 100%
   );
   transform-origin: left center;
   /* scaleX is GPU-friendly; linear transition bridges 100ms seek ticks */
@@ -926,7 +926,7 @@ const layoutStyle = computed(
   /* Avoid subpixel flicker on some Chromium builds */
   backface-visibility: hidden;
   border-radius: inherit;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--rpi-progress-fill, #f2f2f2) 18%, transparent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--rpi-progress-fill, #f2f2f2) 12%, transparent);
 }
 
 .np-meta {
