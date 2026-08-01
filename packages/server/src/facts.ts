@@ -4,11 +4,14 @@ import { FactsConfigStore } from './factsConfig.js';
 import { FactsCache } from './factsCache.js';
 import { createLLMProvider } from './llm.js';
 import { logger } from './logger.js';
+import { getAdminAuthStore } from './adminAuth.js';
 
 export function createFactsRouter(): Router {
   const router = Router();
   const configStore = new FactsConfigStore();
   const cache = new FactsCache();
+  const adminAuth = getAdminAuthStore();
+  const requireAdmin = adminAuth.requireAuth;
 
   // Coalesce concurrent LLM requests for the same track (multi-display / multi-zone)
   const inflight = new Map<string, Promise<string[]>>();
@@ -111,8 +114,8 @@ export function createFactsRouter(): Router {
     }
   });
 
-  // Get facts configuration
-  router.get('/facts/config', (_req, res) => {
+  // Get facts configuration (admin)
+  router.get('/facts/config', requireAdmin, (_req, res) => {
     const config = configStore.get();
     res.json({
       ...config,
@@ -122,8 +125,8 @@ export function createFactsRouter(): Router {
     });
   });
 
-  // Update facts configuration
-  router.post('/facts/config', (req, res) => {
+  // Update facts configuration (admin)
+  router.post('/facts/config', requireAdmin, (req, res) => {
     const updates = req.body as Partial<FactsConfig>;
 
     if (updates.apiKey && updates.apiKey.includes('••••')) {
@@ -137,13 +140,13 @@ export function createFactsRouter(): Router {
 
   // --- Cache import / export ---
 
-  router.get('/facts/cache', (_req, res) => {
+  router.get('/facts/cache', requireAdmin, (_req, res) => {
     res.json({
       entryCount: cache.size(),
     });
   });
 
-  router.get('/facts/cache/export', (_req, res) => {
+  router.get('/facts/cache/export', requireAdmin, (_req, res) => {
     const data = cache.exportAll();
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader(
@@ -153,7 +156,7 @@ export function createFactsRouter(): Router {
     res.send(JSON.stringify(data, null, 2));
   });
 
-  router.post('/facts/cache/import', (req, res) => {
+  router.post('/facts/cache/import', requireAdmin, (req, res) => {
     try {
       const body = (req.body ?? {}) as {
         entries?: unknown;
@@ -189,8 +192,8 @@ export function createFactsRouter(): Router {
     }
   });
 
-  // Test facts generation
-  router.post('/facts/test', async (req, res) => {
+  // Test facts generation (admin)
+  router.post('/facts/test', requireAdmin, async (req, res) => {
     const { artist, album, title } = req.body as FactsRequest;
 
     if (!artist || !album || !title) {

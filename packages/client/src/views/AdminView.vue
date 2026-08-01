@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useWebSocket } from '../composables/useWebSocket';
+import { useAdminAuth, adminFetch } from '../composables/useAdminAuth';
 import {
   LAYOUTS,
   FONTS,
@@ -18,7 +19,114 @@ import {
   type FactsConfig,
 } from '@roon-screen-cover/shared';
 
-const { state: wsState } = useWebSocket({ isAdmin: true });
+const {
+  authChecked,
+  authRequired,
+  authenticated,
+  authError,
+  checkStatus,
+  login,
+  logout,
+  setPassword,
+} = useAdminAuth();
+
+const { state: wsState, reconnect: reconnectWs } = useWebSocket({ isAdmin: true });
+
+// Login form
+const loginPassword = ref('');
+const loginSubmitting = ref(false);
+
+// Security (password) settings
+const newAdminPassword = ref('');
+const confirmAdminPassword = ref('');
+const currentAdminPassword = ref('');
+const passwordSaving = ref(false);
+const passwordMessage = ref<string | null>(null);
+const passwordError = ref<string | null>(null);
+
+async function submitLogin(): Promise<void> {
+  loginSubmitting.value = true;
+  try {
+    const ok = await login(loginPassword.value);
+    if (ok) {
+      loginPassword.value = '';
+      reconnectWs();
+      await loadAdminData();
+    }
+  } finally {
+    loginSubmitting.value = false;
+  }
+}
+
+async function submitLogout(): Promise<void> {
+  await logout();
+  if (authRequired.value) {
+    reconnectWs();
+  }
+}
+
+async function saveAdminPassword(): Promise<void> {
+  passwordMessage.value = null;
+  passwordError.value = null;
+
+  if (newAdminPassword.value !== confirmAdminPassword.value) {
+    passwordError.value = 'Passwords do not match';
+    return;
+  }
+
+  passwordSaving.value = true;
+  try {
+    const result = await setPassword(
+      newAdminPassword.value,
+      authRequired.value ? currentAdminPassword.value : undefined
+    );
+    if (!result.ok) {
+      passwordError.value = result.error;
+      return;
+    }
+    passwordMessage.value = newAdminPassword.value
+      ? 'Password saved. Admin panel is now protected.'
+      : 'Password removed. Admin panel is open again.';
+    newAdminPassword.value = '';
+    confirmAdminPassword.value = '';
+    currentAdminPassword.value = '';
+    if (result.token) reconnectWs();
+  } finally {
+    passwordSaving.value = false;
+  }
+}
+
+async function clearAdminPassword(): Promise<void> {
+  passwordMessage.value = null;
+  passwordError.value = null;
+  if (authRequired.value && !currentAdminPassword.value) {
+    passwordError.value = 'Enter the current password to remove protection';
+    return;
+  }
+  passwordSaving.value = true;
+  try {
+    const result = await setPassword('', currentAdminPassword.value || undefined);
+    if (!result.ok) {
+      passwordError.value = result.error;
+      return;
+    }
+    passwordMessage.value = 'Password removed. Admin panel is open again.';
+    newAdminPassword.value = '';
+    confirmAdminPassword.value = '';
+    currentAdminPassword.value = '';
+  } finally {
+    passwordSaving.value = false;
+  }
+}
+
+async function loadAdminData(): Promise<void> {
+  await Promise.all([
+    loadFactsConfig(),
+    loadCacheStats(),
+    loadSourcesData(),
+    loadDisplaySettings(),
+  ]);
+}
 
 // Navigation
 const activeSection = ref<'clients' | 'facts' | 'test' | 'sources' | 'display'>('clients');
@@ -99,7 +207,7 @@ const displaySettingsSaving = ref(false);
 async function loadDisplaySettings(): Promise<void> {
   try {
     displaySettingsLoading.value = true;
-    const response = await fetch('/api/admin/display-settings');
+    const response = await adminFetch('/api/admin/display-settings');
     if (response.ok) {
       displaySettings.value = await response.json();
     }
@@ -132,9 +240,8 @@ function onArtworkScaleChange(event: Event): void {
 async function saveDisplaySettings(): Promise<void> {
   displaySettingsSaving.value = true;
   try {
-    await fetch('/api/admin/display-settings', {
+    await adminFetch('/api/admin/display-settings', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(displaySettings.value),
     });
   } catch (error) {
@@ -188,9 +295,8 @@ function cancelEditName(): void {
 
 async function saveName(clientId: string): Promise<void> {
   try {
-    await fetch(`/api/admin/clients/${clientId}/name`, {
+    await adminFetch(`/api/admin/clients/${clientId}/name`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editNameValue.value || null }),
     });
     editingName.value = null;
@@ -206,9 +312,8 @@ async function pushSetting(
 ): Promise<void> {
   pushing.value[clientId] = true;
   try {
-    await fetch(`/api/admin/clients/${clientId}/push`, {
+    await adminFetch(`/api/admin/clients/${clientId}/push`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(setting),
     });
   } catch (error) {
@@ -285,7 +390,7 @@ function onOpenRouterModelChange(event: Event): void {
 async function loadFactsConfig(): Promise<void> {
   try {
     factsConfigLoading.value = true;
-    const response = await fetch('/api/facts/config');
+    const response = await adminFetch('/api/facts/config');
     if (response.ok) {
       const config = await response.json();
       factsConfig.value = config;
@@ -303,9 +408,8 @@ async function saveFactsConfig(): Promise<void> {
   factsConfigSuccess.value = false;
 
   try {
-    const response = await fetch('/api/facts/config', {
+    const response = await adminFetch('/api/facts/config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(factsConfig.value),
     });
 
@@ -340,7 +444,7 @@ function resetFactsConfig(): void {
 
 async function loadCacheStats(): Promise<void> {
   try {
-    const response = await fetch('/api/facts/cache');
+    const response = await adminFetch('/api/facts/cache');
     if (response.ok) {
       const data = await response.json();
       cacheEntryCount.value = data.entryCount ?? 0;
@@ -355,7 +459,7 @@ async function exportFactsCache(): Promise<void> {
   cacheError.value = null;
   cacheMessage.value = null;
   try {
-    const response = await fetch('/api/facts/cache/export');
+    const response = await adminFetch('/api/facts/cache/export');
     if (!response.ok) {
       throw new Error('Export failed');
     }
@@ -404,9 +508,8 @@ async function onCacheFileSelected(event: Event): Promise<void> {
       throw new Error('Cache file must be a JSON object (facts-cache.json format)');
     }
 
-    const response = await fetch('/api/facts/cache/import', {
+    const response = await adminFetch('/api/facts/cache/import', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         entries: parsed,
         mode: cacheImportMode.value,
@@ -470,9 +573,8 @@ async function runFactsTest(): Promise<void> {
   }
 
   try {
-    const response = await fetch('/api/facts/test', {
+    const response = await adminFetch('/api/facts/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ artist, album, title }),
     });
 
@@ -494,7 +596,7 @@ async function runFactsTest(): Promise<void> {
 // External sources functions
 async function fetchSourcesConfig(): Promise<void> {
   try {
-    const response = await fetch('/api/sources/config');
+    const response = await adminFetch('/api/sources/config');
     if (response.ok) {
       const config = await response.json();
       sourcesConfig.value = config;
@@ -506,7 +608,7 @@ async function fetchSourcesConfig(): Promise<void> {
 
 async function fetchExternalZones(): Promise<void> {
   try {
-    const response = await fetch('/api/sources');
+    const response = await adminFetch('/api/sources');
     if (response.ok) {
       const data = await response.json();
       externalZones.value = data.zones || [];
@@ -526,9 +628,8 @@ async function toggleRequireApiKey(): Promise<void> {
   sourcesConfigSaving.value = true;
   try {
     const newValue = !sourcesConfig.value.requireApiKey;
-    const response = await fetch('/api/sources/config', {
+    const response = await adminFetch('/api/sources/config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requireApiKey: newValue }),
     });
     if (response.ok) {
@@ -544,7 +645,7 @@ async function toggleRequireApiKey(): Promise<void> {
 async function generateApiKey(): Promise<void> {
   generatingApiKey.value = true;
   try {
-    const response = await fetch('/api/sources/config/generate-key', {
+    const response = await adminFetch('/api/sources/config/generate-key', {
       method: 'POST',
     });
     if (response.ok) {
@@ -574,7 +675,7 @@ async function copyApiKey(): Promise<void> {
 async function deleteExternalZone(zoneId: string): Promise<void> {
   deletingZone.value = zoneId;
   try {
-    const response = await fetch(`/api/sources/${encodeURIComponent(zoneId)}`, {
+    const response = await adminFetch(`/api/sources/${encodeURIComponent(zoneId)}`, {
       method: 'DELETE',
     });
     if (response.ok) {
@@ -598,16 +699,53 @@ function formatLastSeen(timestamp: string | number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-onMounted(() => {
-  loadFactsConfig();
-  loadCacheStats();
-  loadSourcesData();
-  loadDisplaySettings();
+onMounted(async () => {
+  await checkStatus();
+  if (authenticated.value) {
+    await loadAdminData();
+    reconnectWs();
+  }
 });
 </script>
 
 <template>
-  <div class="admin-shell">
+  <!-- Auth loading -->
+  <div v-if="!authChecked" class="admin-auth-gate">
+    <div class="auth-card">
+      <div class="loading-spinner"></div>
+      <p>Loading…</p>
+    </div>
+  </div>
+
+  <!-- Login gate -->
+  <div v-else-if="authRequired && !authenticated" class="admin-auth-gate">
+    <form class="auth-card" @submit.prevent="submitLogin">
+      <div class="auth-logo">
+        <svg viewBox="0 0 24 24" fill="currentColor" class="logo-icon">
+          <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+        </svg>
+        <h1>Admin</h1>
+      </div>
+      <p class="auth-desc">Enter the admin password to continue. The now-playing display stays open without a password.</p>
+      <label class="auth-label" for="admin-login-password">Password</label>
+      <input
+        id="admin-login-password"
+        v-model="loginPassword"
+        type="password"
+        class="auth-input"
+        autocomplete="current-password"
+        autofocus
+        :disabled="loginSubmitting"
+      />
+      <p v-if="authError" class="auth-error">{{ authError }}</p>
+      <button type="submit" class="btn-primary auth-submit" :disabled="loginSubmitting || !loginPassword">
+        {{ loginSubmitting ? 'Signing in…' : 'Sign in' }}
+      </button>
+      <a href="/" class="auth-back">← Now Playing</a>
+    </form>
+  </div>
+
+  <div v-else class="admin-shell">
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -694,6 +832,15 @@ onMounted(() => {
           </svg>
           <span>Now Playing</span>
         </a>
+
+        <button
+          v-if="authRequired"
+          type="button"
+          class="logout-btn"
+          @click="submitLogout"
+        >
+          Sign out
+        </button>
 
         <div class="status-indicator" :class="connectionStatus">
           <span class="status-dot"></span>
@@ -1544,6 +1691,72 @@ onMounted(() => {
           <div v-if="displaySettingsSaving" class="saving-indicator">
             Saving...
           </div>
+        </div>
+
+        <div class="config-card">
+          <h2 class="card-title">Admin password</h2>
+          <p class="card-desc">
+            Optional. When set, only people with this password can open
+            <code>/admin</code>. The now-playing display and Plex/external push stay public.
+          </p>
+          <p v-if="authRequired" class="card-hint">Password protection is <strong>on</strong>.</p>
+          <p v-else class="card-hint">Password protection is <strong>off</strong>.</p>
+
+          <div v-if="authRequired" class="form-field">
+            <label for="current-admin-password">Current password</label>
+            <input
+              id="current-admin-password"
+              v-model="currentAdminPassword"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Required to change or remove"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="new-admin-password">{{ authRequired ? 'New password' : 'Password' }}</label>
+            <input
+              id="new-admin-password"
+              v-model="newAdminPassword"
+              type="password"
+              autocomplete="new-password"
+              placeholder="At least 4 characters"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="confirm-admin-password">Confirm password</label>
+            <input
+              id="confirm-admin-password"
+              v-model="confirmAdminPassword"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Repeat password"
+            />
+          </div>
+
+          <div class="security-actions">
+            <button
+              type="button"
+              class="btn-primary"
+              :disabled="passwordSaving || !newAdminPassword"
+              @click="saveAdminPassword"
+            >
+              {{ passwordSaving ? 'Saving…' : authRequired ? 'Update password' : 'Enable protection' }}
+            </button>
+            <button
+              v-if="authRequired"
+              type="button"
+              class="btn-secondary"
+              :disabled="passwordSaving"
+              @click="clearAdminPassword"
+            >
+              Remove password
+            </button>
+          </div>
+
+          <div v-if="passwordMessage" class="message-card success" style="margin-top: 16px">{{ passwordMessage }}</div>
+          <div v-if="passwordError" class="message-card error" style="margin-top: 16px">{{ passwordError }}</div>
         </div>
       </section>
     </main>
@@ -3043,5 +3256,124 @@ onMounted(() => {
   margin-top: 16px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.security-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.logout-btn {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Login gate */
+.admin-auth-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0b;
+  padding: 24px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: #fafafa;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 16px;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.auth-logo .logo-icon {
+  width: 28px;
+  height: 28px;
+  color: #f59e0b;
+}
+
+.auth-logo h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.auth-desc {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #a1a1aa;
+}
+
+.auth-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.auth-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #3f3f46;
+  background: #111113;
+  color: #fafafa;
+  font-size: 15px;
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: #f59e0b;
+}
+
+.auth-error {
+  margin: 0;
+  font-size: 13px;
+  color: #f87171;
+}
+
+.auth-submit {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.auth-back {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 13px;
+  color: #a1a1aa;
+  text-decoration: none;
+}
+
+.auth-back:hover {
+  color: #fafafa;
 }
 </style>

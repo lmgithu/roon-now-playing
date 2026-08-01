@@ -82,8 +82,36 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   function getWebSocketUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const adminParam = options.isAdmin ? '?admin=true' : '';
-    return `${protocol}//${window.location.host}/ws${adminParam}`;
+    const params = new URLSearchParams();
+    if (options.isAdmin) {
+      params.set('admin', 'true');
+      try {
+        const token = sessionStorage.getItem('roon-admin-token');
+        if (token) params.set('token', token);
+      } catch {
+        /* ignore */
+      }
+    }
+    const qs = params.toString();
+    return `${protocol}//${window.location.host}/ws${qs ? `?${qs}` : ''}`;
+  }
+
+  /** Close and reopen (e.g. after admin login so token is on the URL). */
+  function reconnect(): void {
+    if (reconnectTimeout !== null) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
+    if (ws) {
+      try {
+        ws.onclose = null;
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+      ws = null;
+    }
+    connect();
   }
 
   function sendMetadata(): void {
@@ -304,5 +332,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     updateMetadata,
     connect,
     disconnect,
+    reconnect,
   };
 }

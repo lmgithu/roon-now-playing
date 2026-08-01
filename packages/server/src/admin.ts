@@ -4,9 +4,85 @@ import type { LayoutType, FontType, BackgroundType } from '@roon-screen-cover/sh
 import { LAYOUTS, FONTS, BACKGROUNDS } from '@roon-screen-cover/shared';
 import { logger } from './logger.js';
 import { loadDisplaySettings, saveDisplaySettings } from './display-settings.js';
+import { getAdminAuthStore } from './adminAuth.js';
 
 export function createAdminRouter(wsManager: WebSocketManager): Router {
   const router = Router();
+  const adminAuth = getAdminAuthStore();
+
+  // --- Auth (public when checking/login; password changes need session if set) ---
+
+  router.get('/auth/status', (_req, res) => {
+    res.json({ required: adminAuth.isPasswordSet() });
+  });
+
+  router.post('/auth/login', (req, res) => {
+    const { password } = req.body as { password?: string };
+    if (typeof password !== 'string') {
+      res.status(400).json({ error: 'password is required' });
+      return;
+    }
+    const result = adminAuth.login(password);
+    if (!result.ok) {
+      res.status(401).json({ error: result.error });
+      return;
+    }
+    res.json({ success: true, token: result.token });
+  });
+
+  router.post('/auth/logout', (req, res) => {
+    adminAuth.logout(adminAuth.extractToken(req));
+    res.json({ success: true });
+  });
+
+  /**
+   * Set / change / clear admin password.
+   * - First time (no password): no auth required
+   * - When password set: require valid session + currentPassword in body
+   */
+  router.post('/auth/password', (req, res) => {
+    const { password, currentPassword } = req.body as {
+      password?: string;
+      currentPassword?: string;
+    };
+
+    if (typeof password !== 'string') {
+      res.status(400).json({ error: 'password is required (use empty string to clear)' });
+      return;
+    }
+
+    if (adminAuth.isPasswordSet()) {
+      const token = adminAuth.extractToken(req);
+      if (!adminAuth.validateToken(token)) {
+        res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Admin password required',
+          authRequired: true,
+        });
+        return;
+      }
+    }
+
+    const result = adminAuth.setPassword(password, currentPassword);
+    if (!result.ok) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    // If a new password was set, return a fresh session so the UI stays logged in
+    if (password) {
+      const login = adminAuth.login(password);
+      if (login.ok) {
+        res.json({ success: true, required: true, token: login.token });
+        return;
+      }
+    }
+
+    res.json({ success: true, required: false });
+  });
+
+  // All other admin routes require session when a password is configured
+  router.use(adminAuth.requireAuth);
 
   // Get all connected clients
   router.get('/clients', (_req, res) => {

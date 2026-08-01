@@ -14,11 +14,15 @@ import {
   type Zone,
 } from '@roon-screen-cover/shared';
 import { useWebSocket } from '../composables/useWebSocket';
+import { useAdminAuth, adminFetch } from '../composables/useAdminAuth';
+import { useRouter } from 'vue-router';
 
 const route = useRoute();
+const router = useRouter();
 const friendlyName = computed(() => route.params.friendlyName as string);
 
-const { state: wsState } = useWebSocket({ isAdmin: true });
+const { authRequired, authenticated, checkStatus } = useAdminAuth();
+const { state: wsState, reconnect: reconnectWs } = useWebSocket({ isAdmin: true });
 
 const editingName = ref(false);
 const editNameValue = ref('');
@@ -64,9 +68,8 @@ async function saveName(): Promise<void> {
   if (!screen.value) return;
   saving.value = true;
   try {
-    await fetch(`/api/admin/clients/${screen.value.clientId}/name`, {
+    await adminFetch(`/api/admin/clients/${screen.value.clientId}/name`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editNameValue.value || null }),
     });
     editingName.value = false;
@@ -83,9 +86,8 @@ async function pushSetting(
   if (!screen.value) return;
   saving.value = true;
   try {
-    const resp = await fetch(`/api/admin/clients/${screen.value.clientId}/push`, {
+    const resp = await adminFetch(`/api/admin/clients/${screen.value.clientId}/push`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(setting),
     });
     if (!resp.ok) {
@@ -170,7 +172,14 @@ watch(error, (val) => {
 // Poll for screen data if not yet found via WebSocket
 const pollTimer = ref<ReturnType<typeof setInterval> | null>(null);
 
-onMounted(() => {
+onMounted(async () => {
+  await checkStatus();
+  if (authRequired.value && !authenticated.value) {
+    router.replace('/admin');
+    return;
+  }
+  reconnectWs();
+
   // Poll API as fallback if screen not in WS client list
   pollTimer.value = setInterval(async () => {
     if (screen.value) {
@@ -181,7 +190,7 @@ onMounted(() => {
       return;
     }
     try {
-      await fetch(`/api/admin/screens/${encodeURIComponent(friendlyName.value)}`);
+      await adminFetch(`/api/admin/screens/${encodeURIComponent(friendlyName.value)}`);
     } catch {
       // ignore — screen may not be connected yet
     }

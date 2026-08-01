@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.4] - 2026-08-01
+
+### Added
+
+- **Admin password protection** (optional): set a password under Display → Admin password. When enabled, `/admin` requires login; now-playing display and external source push (Plex) stay open. Password is stored hashed (`scrypt`); sessions use a Bearer token (7-day).
+
 ## [2.0.3] - 2026-08-01
 
 ### Changed

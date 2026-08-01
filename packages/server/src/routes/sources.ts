@@ -3,15 +3,17 @@ import type { ExternalUpdatePayload } from '@roon-screen-cover/shared';
 import { ExternalSourceManager } from '../externalSources.js';
 import { SourcesConfigStore } from '../sourcesConfig.js';
 import { logger } from '../logger.js';
+import { getAdminAuthStore } from '../adminAuth.js';
 
 export function createSourcesRouter(
   externalSourceManager: ExternalSourceManager,
   sourcesConfigStore: SourcesConfigStore
 ): Router {
   const router = Router();
+  const requireAdmin = getAdminAuthStore().requireAuth;
 
-  // Authentication middleware
-  const authenticate = (req: Request, res: Response, next: () => void) => {
+  // External-source API key (for pushers like Plex bridge) — separate from admin password
+  const authenticateExternal = (req: Request, res: Response, next: () => void) => {
     if (!sourcesConfigStore.isAuthRequired()) {
       next();
       return;
@@ -25,8 +27,8 @@ export function createSourcesRouter(
     next();
   };
 
-  // POST /api/sources/:zoneId/now-playing - Push now-playing update
-  router.post('/:zoneId/now-playing', authenticate, async (req: Request, res: Response) => {
+  // POST /api/sources/:zoneId/now-playing - Push now-playing update (external sources)
+  router.post('/:zoneId/now-playing', authenticateExternal, async (req: Request, res: Response) => {
     const zoneId = req.params.zoneId as string;
     const payload = req.body as ExternalUpdatePayload;
 
@@ -62,8 +64,8 @@ export function createSourcesRouter(
     }
   });
 
-  // DELETE /api/sources/:zoneId - Remove zone
-  router.delete('/:zoneId', authenticate, (req: Request, res: Response) => {
+  // DELETE /api/sources/:zoneId - Remove zone (admin UI; also allow external API key)
+  router.delete('/:zoneId', requireAdmin, (req: Request, res: Response) => {
     const zoneId = req.params.zoneId as string;
     const deleted = externalSourceManager.deleteZone(zoneId);
 
@@ -75,14 +77,14 @@ export function createSourcesRouter(
     res.json({ success: true });
   });
 
-  // GET /api/sources - List all external zones
-  router.get('/', (req: Request, res: Response) => {
+  // GET /api/sources - List all external zones (admin)
+  router.get('/', requireAdmin, (req: Request, res: Response) => {
     const zones = externalSourceManager.getExternalZones();
     res.json({ zones });
   });
 
   // GET /api/sources/config - Get sources config (for admin)
-  router.get('/config', (req: Request, res: Response) => {
+  router.get('/config', requireAdmin, (req: Request, res: Response) => {
     const config = sourcesConfigStore.get();
     res.json({
       requireApiKey: config.requireApiKey,
@@ -93,7 +95,7 @@ export function createSourcesRouter(
   });
 
   // POST /api/sources/config - Update sources config (for admin)
-  router.post('/config', (req: Request, res: Response) => {
+  router.post('/config', requireAdmin, (req: Request, res: Response) => {
     const { requireApiKey } = req.body;
 
     if (typeof requireApiKey === 'boolean') {
@@ -104,7 +106,7 @@ export function createSourcesRouter(
   });
 
   // POST /api/sources/config/generate-key - Generate new API key
-  router.post('/config/generate-key', (req: Request, res: Response) => {
+  router.post('/config/generate-key', requireAdmin, (req: Request, res: Response) => {
     const key = sourcesConfigStore.generateApiKey();
     res.json({ success: true, apiKey: key });
   });

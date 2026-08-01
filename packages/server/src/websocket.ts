@@ -28,6 +28,7 @@ import { generateFriendlyName } from './nameGenerator.js';
 import { logger } from './logger.js';
 import { loadDisplaySettings } from './display-settings.js';
 import type { ClientSettingsStore, ClientSettings } from './clientSettings.js';
+import { getAdminAuthStore } from './adminAuth.js';
 
 interface ClientState {
   ws: WebSocket;
@@ -93,8 +94,20 @@ export class WebSocketManager {
   private setupWebSocketServer(): void {
     this.wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const url = new URL(req.url || '', `http://${req.headers.host}`);
-      const isAdmin = url.searchParams.get('admin') === 'true';
+      let isAdmin = url.searchParams.get('admin') === 'true';
       const userAgent = req.headers['user-agent'] || null;
+
+      // Admin WS only when password unset or token is valid
+      if (isAdmin) {
+        const adminAuth = getAdminAuthStore();
+        if (adminAuth.isPasswordSet()) {
+          const token = url.searchParams.get('token');
+          if (!adminAuth.validateToken(token)) {
+            logger.warn('Rejected admin WebSocket (missing/invalid token)');
+            isAdmin = false;
+          }
+        }
+      }
 
       logger.info(`New WebSocket connection (admin: ${isAdmin})`);
 
