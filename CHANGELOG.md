@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.6] - 2026-08-01
+
+### Fixed
+
+- **Admin login:** Sign in button now uses the same amber primary styling as the rest of the admin panel (login gate sits outside `.admin-shell`, so accent CSS variables were missing).
+
 ## [2.0.5] - 2026-08-01
 
 ### Changed

@@ -3282,8 +3282,13 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
-/* Login gate */
+/* Login gate — outside .admin-shell, so define the same accent tokens here */
 .admin-auth-gate {
+  --accent-primary: #f59e0b;
+  --accent-primary-hover: #d97706;
+  --radius-md: 10px;
+  --transition: 0.15s ease;
+
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -3363,6 +3368,29 @@ onMounted(async () => {
 .auth-submit {
   margin-top: 8px;
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+  /* Explicit amber — login gate is outside .admin-shell where btn-primary vars live */
+  background: var(--accent-primary);
+  color: #000;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+}
+
+.auth-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .auth-back {
