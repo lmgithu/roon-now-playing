@@ -61,22 +61,33 @@ export function useFacts(
   let abortController: AbortController | null = null;
   let requestSeq = 0;
 
-  // Fetch rotation interval from server config (immediately on composable init)
-  fetch('/api/facts/config')
-    .then((response) => {
-      if (response.ok) {
-        return response.json();
+  function applyRotationInterval(seconds: unknown): void {
+    if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) {
+      const next = Math.round(seconds);
+      if (next !== rotationIntervalSec.value) {
+        rotationIntervalSec.value = next;
       }
-      return null;
-    })
-    .then((config) => {
-      if (config && typeof config.rotationInterval === 'number' && config.rotationInterval > 0) {
-        rotationIntervalSec.value = config.rotationInterval;
-      }
-    })
-    .catch(() => {
-      // Use default on error
-    });
+    }
+  }
+
+  /**
+   * Public settings only — must not use /api/facts/config (admin-protected).
+   * Otherwise displays fall back to DEFAULT_ROTATION_INTERVAL (25s) forever.
+   */
+  function loadDisplaySettings(): void {
+    fetch('/api/facts/display-settings')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((settings) => {
+        if (settings) applyRotationInterval(settings.rotationInterval);
+      })
+      .catch(() => {
+        // Keep default / last known interval
+      });
+  }
+
+  loadDisplaySettings();
+  // Refresh periodically so admin changes apply without a full page reload
+  const settingsPollTimer = window.setInterval(loadDisplaySettings, 60_000);
 
   const currentFact = computed(() => {
     if (facts.value.length === 0) {
@@ -123,6 +134,14 @@ export function useFacts(
       scheduleNextRotation();
     }, displayTime);
   }
+
+  // When interval arrives/changes after a timer was already scheduled with the default,
+  // restart so the new value takes effect on the *current* fact hold.
+  watch(rotationIntervalSec, () => {
+    if (facts.value.length > 1 && playbackState.value === 'playing') {
+      scheduleNextRotation();
+    }
+  });
 
   async function fetchFacts(trackData: Track): Promise<void> {
     const cacheKey = getCacheKey(trackData.artist, trackData.album, trackData.title);
@@ -282,6 +301,7 @@ export function useFacts(
   onUnmounted(() => {
     clearDebounceTimer();
     clearRotationTimer();
+    window.clearInterval(settingsPollTimer);
     if (abortController) {
       abortController.abort();
     }

@@ -59,7 +59,7 @@ describe('useFacts', () => {
 
     // Mock fetch - default implementation returns config with 25s rotation
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url === '/api/facts/config') {
+      if (url === '/api/facts/display-settings') {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ rotationInterval: 25 }),
@@ -88,7 +88,7 @@ describe('useFacts', () => {
   function mockFetchSuccess(response: FactsResponse, rotationInterval = 25): void {
     vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (url === '/api/facts/config') {
+      if (url === '/api/facts/display-settings') {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ rotationInterval }),
@@ -107,7 +107,7 @@ describe('useFacts', () => {
   function mockFetchError(error: FactsError): void {
     vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (url === '/api/facts/config') {
+      if (url === '/api/facts/display-settings') {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ rotationInterval: 25 }),
@@ -212,7 +212,7 @@ describe('useFacts', () => {
       let resolveFactsPromise: (value: Response) => void;
       vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        if (url === '/api/facts/config') {
+        if (url === '/api/facts/display-settings') {
           return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ rotationInterval: 25 }),
@@ -280,7 +280,7 @@ describe('useFacts', () => {
       let factsCallCount = 0;
       vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        if (url === '/api/facts/config') {
+        if (url === '/api/facts/display-settings') {
           return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ rotationInterval: 25 }),
@@ -340,7 +340,7 @@ describe('useFacts', () => {
       let factsCallCount = 0;
       vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        if (url === '/api/facts/config') {
+        if (url === '/api/facts/display-settings') {
           return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ rotationInterval: 25 }),
@@ -421,7 +421,7 @@ describe('useFacts', () => {
       let factsCallCount = 0;
       vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        if (url === '/api/facts/config') {
+        if (url === '/api/facts/display-settings') {
           return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ rotationInterval: 25 }),
@@ -488,7 +488,7 @@ describe('useFacts', () => {
 
       vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        if (url === '/api/facts/config') {
+        if (url === '/api/facts/display-settings') {
           return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ rotationInterval: 25 }),
@@ -701,7 +701,7 @@ describe('useFacts', () => {
       // Mock config fetch to fail, facts fetch to succeed
       vi.mocked(fetch).mockImplementation((input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        if (url === '/api/facts/config') {
+        if (url === '/api/facts/display-settings') {
           return Promise.reject(new Error('Network error'));
         }
         if (url === '/api/facts') {
@@ -730,6 +730,39 @@ describe('useFacts', () => {
       expect(currentFactIndex.value).toBe(0);
 
       await vi.advanceTimersByTimeAsync(1000);
+      await nextTick();
+      expect(currentFactIndex.value).toBe(1);
+    });
+
+    it('should respect rotationInterval from public display-settings (e.g. 40s)', async () => {
+      const track = ref<Track | null>(null);
+      const playbackState = ref<PlaybackState>('playing');
+
+      mockFetchSuccess(
+        {
+          facts: ['Fact 1', 'Fact 2'],
+          cached: false,
+          generatedAt: Date.now(),
+        },
+        40
+      );
+
+      const { currentFactIndex } = useFacts(track, playbackState);
+
+      track.value = createMockTrack();
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+      await nextTick();
+      // Flush display-settings promise + interval watch
+      await Promise.resolve();
+      await nextTick();
+
+      // Still on first fact just before 40s
+      await vi.advanceTimersByTimeAsync(39_000);
+      await nextTick();
+      expect(currentFactIndex.value).toBe(0);
+
+      await vi.advanceTimersByTimeAsync(1_000);
       await nextTick();
       expect(currentFactIndex.value).toBe(1);
     });

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.13] - 2026-08-01
+
+### Fixed
+
+- **Fact rotation interval:** display clients now load timing from public `GET /api/facts/display-settings` instead of admin-only `/api/facts/config` (which returned 401 when admin password was set, so every screen silently used the 25s default). Interval updates also re-arm the active timer.
+
 ## [2.0.12] - 2026-08-01
 
 ### Added

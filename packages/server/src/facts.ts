@@ -114,7 +114,20 @@ export function createFactsRouter(): Router {
     }
   });
 
-  // Get facts configuration (admin)
+  /**
+   * Public display settings (no secrets) — used by now-playing clients for
+   * rotation interval, etc. Must stay unauthenticated so displays work when
+   * admin password protection is enabled.
+   */
+  router.get('/facts/display-settings', (_req, res) => {
+    const config = configStore.get();
+    res.json({
+      rotationInterval: config.rotationInterval,
+      factsCount: config.factsCount,
+    });
+  });
+
+  // Get facts configuration (admin — includes API key mask)
   router.get('/facts/config', requireAdmin, (_req, res) => {
     const config = configStore.get();
     res.json({
