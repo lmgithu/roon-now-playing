@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.12] - 2026-08-01
+
+### Added
+
+- **Paused progress breath:** subtle opacity pulse on the progress fill while paused (slow ease-in-out; respects `prefers-reduced-motion`).
+
 ## [2.0.11] - 2026-08-01
 
 ### Changed

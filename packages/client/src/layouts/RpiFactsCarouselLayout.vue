@@ -667,7 +667,7 @@ const layoutStyle = computed(
               <span class="np-sep">·</span>
               <span class="np-artist">{{ track.artist }}</span>
             </div>
-            <div class="progress-line">
+            <div class="progress-line" :class="{ 'is-paused': !isPlaying }">
               <div class="progress-fill" />
             </div>
             <div class="np-meta">
@@ -927,6 +927,33 @@ const layoutStyle = computed(
   backface-visibility: hidden;
   border-radius: inherit;
   box-shadow: 0 0 6px color-mix(in srgb, var(--rpi-progress-fill, #f2f2f2) 12%, transparent);
+}
+
+/*
+ * Paused “breath”: gentle opacity pulse so the strip still feels alive.
+ * Slow (~3.6s), narrow range — readable, not a neon throb. Opacity-only = cheap on Pi.
+ */
+.progress-line.is-paused .progress-fill {
+  animation: rpi-progress-breath 3.6s ease-in-out infinite;
+  /* Keep transform animation for seek; breath only fades the fill */
+  will-change: transform, opacity;
+}
+
+@keyframes rpi-progress-breath {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-line.is-paused .progress-fill {
+    animation: none;
+    opacity: 0.85;
+  }
 }
 
 .np-meta {
