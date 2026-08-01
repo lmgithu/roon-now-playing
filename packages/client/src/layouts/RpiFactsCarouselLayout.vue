@@ -909,14 +909,14 @@ const layoutStyle = computed(
 .progress-fill {
   height: 100%;
   width: 100%;
-  /* Soft “elegant” sheen over album-tinted accent — still Pi-friendly (scaleX only) */
+  /* Soft sheen: darker at origin → slightly lighter at the leading edge (playhead) */
   background-color: var(--rpi-progress-fill, #f2f2f2);
   background-image: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.12) 0%,
-    rgba(255, 255, 255, 0.04) 40%,
-    rgba(255, 255, 255, 0) 58%,
-    rgba(0, 0, 0, 0.1) 100%
+    rgba(0, 0, 0, 0.12) 0%,
+    rgba(255, 255, 255, 0) 42%,
+    rgba(255, 255, 255, 0.05) 72%,
+    rgba(255, 255, 255, 0.14) 100%
   );
   transform-origin: left center;
   /* scaleX is GPU-friendly; linear transition bridges 100ms seek ticks */
