@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { FactsConfig, FactsRequest, FactsResponse, FactsTestResponse } from '@roon-screen-cover/shared';
 import { FactsConfigStore } from './factsConfig.js';
 import { FactsCache } from './factsCache.js';
+import { FactsServeStats } from './factsServeStats.js';
 import { createLLMProvider } from './llm.js';
 import { logger } from './logger.js';
 import { getAdminAuthStore } from './adminAuth.js';
@@ -10,6 +11,7 @@ export function createFactsRouter(): Router {
   const router = Router();
   const configStore = new FactsConfigStore();
   const cache = new FactsCache();
+  const serveStats = new FactsServeStats();
   const adminAuth = getAdminAuthStore();
   const requireAdmin = adminAuth.requireAuth;
 
@@ -58,6 +60,7 @@ export function createFactsRouter(): Router {
     // Serve pre-filled / previously generated cache without requiring an API key
     const cached = cache.get(artist, album, title);
     if (cached && cached.length > 0) {
+      serveStats.recordCacheHit();
       const timestamp = cache.getTimestamp(artist, album, title);
       const response: FactsResponse = {
         facts: cached,
@@ -100,6 +103,7 @@ export function createFactsRouter(): Router {
         return;
       }
 
+      serveStats.recordGeneration();
       const response: FactsResponse = {
         facts,
         cached: false,
@@ -156,6 +160,7 @@ export function createFactsRouter(): Router {
   router.get('/facts/cache', requireAdmin, (_req, res) => {
     res.json({
       entryCount: cache.size(),
+      last24h: serveStats.snapshot(),
     });
   });
 

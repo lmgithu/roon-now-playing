@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.14] - 2026-08-01
+
+### Added
+
+- **Facts Cache stats (last 24h):** Admin → AI Facts shows cache serves vs AI generations (counts + %), plus total requests and current entry count. Rolling window persisted in `facts-serve-stats.json`.
+
 ## [2.0.13] - 2026-08-01
 
 ### Fixed
