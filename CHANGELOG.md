@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.5] - 2026-08-01
+
+### Changed
+
+- **RPi Facts Carousel:** lighter, more chromatic album background wash (higher L + S on the radial gradient) so the room color resonates with cover art instead of reading as near-black.
+
 ## [2.0.4] - 2026-08-01
 
 ### Added

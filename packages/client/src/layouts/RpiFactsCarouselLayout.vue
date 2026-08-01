@@ -236,16 +236,16 @@ function makeFallbackTheme(seed: string = ''): RpiTheme {
   const a = FALLBACK_ACCENTS[idx]!;
   const e = FALLBACK_ACCENTS[edgeIdx]!;
 
-  // Dark field: pure dark for text-match accents; soft tint otherwise
+  // Soft dark field (aligned with album-theme lift — not pure void)
   const bgCenter = a.matchText
-    ? 'hsl(0, 0%, 10%)'
-    : hslToString(a.h, clamp(a.s + 4, 6, 16), 11);
+    ? 'hsl(0, 0%, 14%)'
+    : hslToString(a.h, clamp(a.s + 6, 10, 22), 16);
   const bgMid = a.matchText
-    ? 'hsl(0, 0%, 6%)'
-    : hslToString(e.h, clamp(e.s, 5, 14), 7);
+    ? 'hsl(0, 0%, 10%)'
+    : hslToString(e.h, clamp(e.s + 2, 8, 18), 12);
   const bgEdge = a.matchText
-    ? 'hsl(0, 0%, 3%)'
-    : hslToString(e.h, clamp(e.s - 2, 4, 12), 4);
+    ? 'hsl(0, 0%, 6%)'
+    : hslToString(e.h, clamp(e.s, 6, 14), 8);
 
   // Progress/dots: text white when matchText, or soft non-blue muted hue
   let accent: string;
@@ -439,13 +439,15 @@ function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme
 
   const chromatic = baseS >= 8;
 
-  // --- Background: same H, quiet but present (not pure void) ---
-  const bgS = chromatic ? clamp(baseS * 0.38, 10, 20) : 0;
-  const bgL = 9;
-  const midS = chromatic ? clamp(bgS * 0.9, 8, 18) : 0;
-  const midL = 7;
-  const edgeS = chromatic ? clamp(bgS * 0.75, 6, 16) : 0;
-  const edgeL = 4;
+  // --- Background: same H, richer wash (readable color room, still OLED-safe) ---
+  // Previous L~4–9 read as near-black; lift + a bit more sat so cover temperature
+  // fills the screen without competing with facts / strip.
+  const bgS = chromatic ? clamp(baseS * 0.48, 14, 28) : 0;
+  const bgL = chromatic ? 17 : 11;
+  const midS = chromatic ? clamp(bgS * 0.92, 12, 24) : 0;
+  const midL = chromatic ? 13 : 8;
+  const edgeS = chromatic ? clamp(bgS * 0.78, 10, 20) : 0;
+  const edgeL = chromatic ? 8 : 5;
 
   const bgCenter = hslToString(H, bgS, bgL);
   const bgMid = hslToString(H, midS, midL);
@@ -688,7 +690,7 @@ const layoutStyle = computed(
   width: 100%;
   height: 100%;
   /* Fallback before first sample — neutral dark, not blue */
-  background: radial-gradient(ellipse at 28% 85%, hsl(0, 0%, 11%) 0%, hsl(0, 0%, 4%) 100%);
+  background: radial-gradient(ellipse at 28% 85%, hsl(0, 0%, 14%) 0%, hsl(0, 0%, 7%) 100%);
   overflow: hidden;
   isolation: isolate;
 }
