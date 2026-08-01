@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.9] - 2026-08-01
+
+### Changed
+
+- **Progress bar:** softer gradient sheen (less bright lead edge) and lighter glow.
+
 ## [2.0.8] - 2026-08-01
 
 ### Added
