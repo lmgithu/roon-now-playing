@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.8] - 2026-08-01
+
+### Added
+
+- **Source + quality** on the now-playing meta row: e.g. `Mojo 2 · Tidal · 96kHz / 24-bit` or `… · FLAC · 192kHz / 24-bit` (from Roon when available; optional on External Sources API).
+- Soft **gradient sheen** on the progress bar fill (album-tinted accent, still Pi-friendly `scaleX`).
+
 ## [2.0.7] - 2026-08-01
 
 ### Changed

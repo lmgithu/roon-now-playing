@@ -63,6 +63,8 @@ Creates or updates a zone with current playback state.
 | `seek_position` | number | No | Current position in seconds |
 | `artwork_url` | string | No | URL to album artwork |
 | `artwork_base64` | string | No | Base64-encoded image |
+| `source_label` | string | No | Short origin label shown in the strip (e.g. `Tidal`, `FLAC`) |
+| `quality_label` | string | No | Format line (e.g. `192kHz / 24-bit`) |
 
 **Response:**
 

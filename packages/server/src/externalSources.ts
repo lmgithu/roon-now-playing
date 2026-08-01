@@ -148,6 +148,8 @@ export class ExternalSourceManager extends EventEmitter {
         album: payload.album || 'Unknown Album',
         duration_seconds: payload.duration_seconds || 0,
         artwork_key: artworkKey,
+        source_label: payload.source_label ?? null,
+        quality_label: payload.quality_label ?? null,
       };
     }
 

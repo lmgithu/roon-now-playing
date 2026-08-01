@@ -28,6 +28,15 @@ interface RoonNowPlaying {
   length?: number;
   seek_position?: number;
   image_key?: string;
+  // Undocumented / version-dependent format fields (best-effort)
+  sample_rate?: number;
+  sampleRate?: number;
+  bits_per_sample?: number;
+  bit_depth?: number;
+  bitDepth?: number;
+  source?: string;
+  service?: string;
+  media_type?: string;
 }
 
 interface RoonZoneState {
@@ -289,12 +298,22 @@ export class RoonClient extends EventEmitter {
     const threeLine = nowPlaying.three_line;
     if (!threeLine) return null;
 
+    const { source_label, quality_label } = extractRoonSourceAndQuality(nowPlaying);
+
+    if (process.env.ROON_DEBUG_FORMAT === '1') {
+      logger.info(
+        `[roon-format] keys=${Object.keys(nowPlaying).join(',')} source=${source_label ?? '—'} quality=${quality_label ?? '—'}`
+      );
+    }
+
     return {
       title: threeLine.line1 || 'Unknown Title',
       artist: threeLine.line2 || 'Unknown Artist',
       album: threeLine.line3 || 'Unknown Album',
       duration_seconds: nowPlaying.length ?? 0,
       artwork_key: nowPlaying.image_key ?? null,
+      source_label,
+      quality_label,
     };
   }
 
@@ -309,6 +328,119 @@ export class RoonClient extends EventEmitter {
         return 'stopped';
     }
   }
+}
+
+/** Coerce unknown values to a positive number, or null. */
+function pickPositiveNumber(...vals: unknown[]): number | null {
+  for (const v of vals) {
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
+    if (typeof v === 'string' && v.trim() !== '') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return null;
+}
+
+/** Format Hz as 44.1kHz / 48kHz / 96kHz / 192kHz … */
+export function formatSampleRateLabel(hz: number): string {
+  // Some payloads use kHz already (e.g. 44.1, 96)
+  if (hz > 0 && hz < 1000) {
+    const s = Number.isInteger(hz) ? String(hz) : String(Math.round(hz * 10) / 10);
+    return `${s}kHz`;
+  }
+  if (hz % 1000 === 0) return `${hz / 1000}kHz`;
+  // 44100 → 44.1kHz
+  return `${Math.round((hz / 1000) * 10) / 10}kHz`;
+}
+
+/**
+ * Best-effort source + quality from Roon now_playing.
+ * Official transport docs only list lines/length/image; cores sometimes
+ * attach extra fields — we probe common names. Enable ROON_DEBUG_FORMAT=1
+ * to log available keys when diagnosing.
+ */
+export function extractRoonSourceAndQuality(np: RoonNowPlaying): {
+  source_label: string | null;
+  quality_label: string | null;
+} {
+  // Cast: Roon cores may attach undocumented fields beyond the typed surface
+  const raw = np as RoonNowPlaying & Record<string, unknown>;
+  const nestedCandidate = raw.format ?? raw.source_format ?? raw.media ?? raw.stream;
+  const nested =
+    nestedCandidate && typeof nestedCandidate === 'object'
+      ? (nestedCandidate as Record<string, unknown>)
+      : null;
+
+  const sampleRate = pickPositiveNumber(
+    raw.sample_rate,
+    raw.sampleRate,
+    raw.samplerate,
+    raw.sample_rate_hz,
+    nested?.sample_rate,
+    nested?.sampleRate,
+    nested?.samplerate
+  );
+
+  const bitDepth = pickPositiveNumber(
+    raw.bits_per_sample,
+    raw.bit_depth,
+    raw.bitDepth,
+    raw.bits,
+    raw.bitdepth,
+    nested?.bits_per_sample,
+    nested?.bit_depth,
+    nested?.bitDepth,
+    nested?.bits
+  );
+
+  const sourceParts: string[] = [];
+  for (const key of [
+    'source',
+    'service',
+    'media_source',
+    'content_source',
+    'radio',
+    'channel',
+    'file',
+    'path',
+    'url',
+    'uri',
+    'location',
+  ]) {
+    const v = raw[key];
+    if (typeof v === 'string' && v.trim()) sourceParts.push(v);
+  }
+  if (nested) {
+    for (const key of ['source', 'service', 'type', 'name']) {
+      const v = nested[key];
+      if (typeof v === 'string' && v.trim()) sourceParts.push(v);
+    }
+  }
+
+  const blob = sourceParts.join(' ').toLowerCase();
+  let source_label: string | null = null;
+  if (/tidal/.test(blob)) {
+    source_label = 'Tidal';
+  } else if (
+    /local|library|file:|nas|smb:|cifs|network|folder|storage|flac|alac|wav|aiff|dsf|dff|ape|\.wv\b/.test(
+      blob
+    )
+  ) {
+    // User preference: label local library playback as FLAC
+    source_label = 'FLAC';
+  }
+
+  let quality_label: string | null = null;
+  if (sampleRate && bitDepth) {
+    quality_label = `${formatSampleRateLabel(sampleRate)} / ${Math.round(bitDepth)}-bit`;
+  } else if (sampleRate) {
+    quality_label = formatSampleRateLabel(sampleRate);
+  } else if (bitDepth) {
+    quality_label = `${Math.round(bitDepth)}-bit`;
+  }
+
+  return { source_label, quality_label };
 }
 
 // Singleton instance

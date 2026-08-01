@@ -671,7 +671,17 @@ const layoutStyle = computed(
               <div class="progress-fill" />
             </div>
             <div class="np-meta">
-              <span class="zone-name">{{ zoneName }}</span>
+              <span class="meta-left">
+                <span class="zone-name">{{ zoneName }}</span>
+                <template v-if="track.source_label">
+                  <span class="meta-dot" aria-hidden="true">·</span>
+                  <span class="source-label">{{ track.source_label }}</span>
+                </template>
+                <template v-if="track.quality_label">
+                  <span class="meta-dot" aria-hidden="true">·</span>
+                  <span class="quality-label">{{ track.quality_label }}</span>
+                </template>
+              </span>
               <span class="time-info">{{ currentTime }} / {{ duration }}</span>
             </div>
           </div>
@@ -856,6 +866,9 @@ const layoutStyle = computed(
 .np-artist,
 .np-sep,
 .zone-name,
+.source-label,
+.quality-label,
+.meta-dot,
 .time-info,
 .loading-hint,
 .error-hint,
@@ -884,18 +897,27 @@ const layoutStyle = computed(
 }
 
 .progress-line {
-  height: clamp(4px, 0.4cqi, 8px);
+  height: clamp(5px, 0.45cqi, 9px);
   background: var(--rpi-progress-track, rgba(245, 245, 245, 0.16));
   border-radius: 999px;
   overflow: hidden;
   /* Isolate fill transforms so only this strip repaints */
   contain: layout style;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.25);
 }
 
 .progress-fill {
   height: 100%;
   width: 100%;
-  background: var(--rpi-progress-fill, #f2f2f2);
+  /* Soft “elegant” sheen over album-tinted accent — still Pi-friendly (scaleX only) */
+  background-color: var(--rpi-progress-fill, #f2f2f2);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.06) 38%,
+    rgba(255, 255, 255, 0) 55%,
+    rgba(0, 0, 0, 0.12) 100%
+  );
   transform-origin: left center;
   /* scaleX is GPU-friendly; linear transition bridges 100ms seek ticks */
   transform: scaleX(var(--rpi-progress, 0));
@@ -903,6 +925,8 @@ const layoutStyle = computed(
   will-change: transform;
   /* Avoid subpixel flicker on some Chromium builds */
   backface-visibility: hidden;
+  border-radius: inherit;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--rpi-progress-fill, #f2f2f2) 28%, transparent);
 }
 
 .np-meta {
@@ -914,12 +938,44 @@ const layoutStyle = computed(
   color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
+.meta-left {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
+}
+
 .zone-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 55%;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 42%;
   color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
+}
+
+.meta-dot {
+  flex-shrink: 0;
+  opacity: 0.55;
+  color: var(--rpi-sep, rgba(245, 245, 245, 0.45));
+}
+
+.source-label,
+.quality-label {
+  flex-shrink: 0;
+  color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
+  letter-spacing: 0.01em;
+}
+
+.quality-label {
+  font-variant-numeric: tabular-nums;
+  /* Slightly brighter so 192kHz / 24-bit is glanceable */
+  color: var(--rpi-artist, rgba(245, 245, 245, 0.82));
 }
 
 .time-info {

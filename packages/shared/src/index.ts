@@ -11,6 +11,10 @@ export interface Track {
   album: string;
   duration_seconds: number;
   artwork_key: string | null;
+  /** Display label for origin, e.g. "Tidal" or "FLAC" (local library) */
+  source_label?: string | null;
+  /** e.g. "192kHz / 24-bit" */
+  quality_label?: string | null;
 }
 
 // Playback state
@@ -352,6 +356,10 @@ export interface ExternalUpdatePayload {
   seek_position?: number;
   artwork_url?: string;
   artwork_base64?: string;
+  /** Optional: "Tidal" | "FLAC" | etc. */
+  source_label?: string;
+  /** Optional: e.g. "192kHz / 24-bit" */
+  quality_label?: string;
 }
 
 export interface ExternalUpdateResponse {
