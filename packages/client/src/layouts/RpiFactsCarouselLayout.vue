@@ -2,10 +2,12 @@
 /**
  * RPi Facts Carousel — Facts-carousel hierarchy, Pi 3–safe rendering.
  *
- * Color roles (Color Thief):
- * - Progress bar, dots, strip text → Muted (else DarkMuted)
- * - Hero fact quote → LightMuted
- * - Pure white (#f2f2f2) only if those swatches are missing / extraction fails
+ * Color system (Color Thief → single album hue, staged by role):
+ * - Pick one chromatic hue from the cover (prefer Muted/LightMuted agreement)
+ * - Background / facts / strip / progress all share that H at different S/L
+ * - Strip text stays near-white (tiny tint); progress is the clear accent
+ * - Soft neutral fallback only when art is gray or sampling fails
+ * - Anti-neon clamps; no dual fighting tints (e.g. cream facts + purple dock)
  */
 import { computed, ref, watch, onUnmounted, type CSSProperties } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
@@ -338,150 +340,172 @@ function colorToHsl(c: Color): HSL {
   return { h, s, l };
 }
 
-/** Swatch for chrome (bar, dots, strip text): Muted → DarkMuted only. */
-function pickMutedChrome(swatches: SwatchMap): HSL | null {
-  if (swatches.Muted) return colorToHsl(swatches.Muted.color);
-  if (swatches.DarkMuted) return colorToHsl(swatches.DarkMuted.color);
-  return null;
-}
-
-/** Swatch for large fact quotes: LightMuted (soft album-tinted light). */
-function pickLightMutedQuote(swatches: SwatchMap): HSL | null {
-  if (swatches.LightMuted) return colorToHsl(swatches.LightMuted.color);
-  // Soft fallbacks within Thief before pure white
-  if (swatches.Muted) {
-    const m = colorToHsl(swatches.Muted.color);
-    return { h: m.h, s: clamp(m.s * 0.6, 0, 22), l: clamp(Math.max(m.l, 78), 78, 90) };
-  }
-  return null;
-}
-
-/** Background hues from dark semantic swatches + palette. */
-function pickBgHues(swatches: SwatchMap, palette: Color[]): { primary: HSL; secondary: HSL } {
-  const dark =
-    swatches.DarkMuted?.color ??
-    swatches.DarkVibrant?.color ??
-    swatches.Muted?.color ??
-    palette[0] ??
-    null;
-  const primary = dark ? colorToHsl(dark) : { h: 0, s: 8, l: 20 };
-
-  let secondary: HSL = primary;
-  for (const c of palette) {
-    const hsl = colorToHsl(c);
-    const dh = Math.min(Math.abs(hsl.h - primary.h), 360 - Math.abs(hsl.h - primary.h));
-    if (dh >= 25 && hsl.s >= 8) {
-      secondary = hsl;
-      break;
-    }
-  }
-  if (secondary === primary) {
-    const alt = swatches.Muted?.color ?? swatches.LightMuted?.color ?? swatches.DarkVibrant?.color;
-    if (alt) secondary = colorToHsl(alt);
-  }
-  return { primary, secondary };
-}
-
-/** Lift a muted hue into a readable light text color on dark OLED. */
-function asReadableTint(h: number, s: number, l: number, minL: number, maxS: number): HSL {
-  let hh = h;
-  let ss = clamp(s * 0.7, 0, maxS);
-  let ll = clamp(Math.max(l, minL), minL, 92);
-  if (isUnwantedBlueHue(hh, ss) && ss >= 12) {
-    hh = 0;
-    ss = 0;
-    ll = Math.max(minL, 88);
-  }
-  return { h: hh, s: ss, l: ll };
-}
-
 function hslCss(h: number, s: number, l: number, a?: number): string {
   return hslToString(h, s, l, a);
 }
 
+function hueDistance(a: number, b: number): number {
+  return Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+}
+
 /**
- * Color roles (Color Thief):
- * - Progress bar + dots + strip text → Muted (DarkMuted if Muted missing)
- * - Fact quote → LightMuted (readable lifted if needed)
- * - Pure white only if required swatches missing (caller falls back)
+ * Pick one album hue for the whole UI. Prefer soft chromatic swatches that
+ * agree with LightMuted (when present) so quote, bar, and field share temperature.
+ */
+function pickAlbumHue(swatches: SwatchMap, palette: Color[]): HSL | null {
+  const candidates: HSL[] = [];
+  const keys: Array<keyof SwatchMap> = [
+    'Muted',
+    'DarkMuted',
+    'LightMuted',
+    'Vibrant',
+    'DarkVibrant',
+    'LightVibrant',
+  ];
+  for (const key of keys) {
+    const sw = swatches[key];
+    if (sw) candidates.push(colorToHsl(sw.color));
+  }
+  for (const c of palette.slice(0, 8)) {
+    candidates.push(colorToHsl(c));
+  }
+  if (!candidates.length) return null;
+
+  const lightMuted = swatches.LightMuted ? colorToHsl(swatches.LightMuted.color) : null;
+  const muted = swatches.Muted ? colorToHsl(swatches.Muted.color) : null;
+  const ref: HSL =
+    lightMuted && lightMuted.s >= 6
+      ? lightMuted
+      : muted && muted.s >= 6
+        ? muted
+        : (candidates.find((c) => c.s >= 8) ?? candidates[0]!);
+
+  let best: HSL | null = null;
+  let bestScore = -Infinity;
+
+  for (const c of candidates) {
+    if (c.s < 4) continue;
+    const dh = hueDistance(c.h, ref.h);
+    // Prefer moderate chroma; punish neon and cool-blue mud
+    const satScore = c.s > 55 ? 55 - (c.s - 55) * 0.55 : c.s;
+    const hueAgree = 42 - Math.min(dh, 42);
+    let score = satScore + hueAgree;
+    if (c.l >= 22 && c.l <= 78) score += 10;
+    if (isUnwantedBlueHue(c.h, c.s) && c.s >= 12) score -= 40;
+    // Prefer LightMuted / Muted neighbourhood of lightness for stable H
+    if (c.s >= 10 && c.s <= 40) score += 6;
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+
+  if (best) return best;
+
+  // Gray-heavy art: still return something so we can build a neutral theme
+  return lightMuted ?? muted ?? candidates[0] ?? null;
+}
+
+/** Ensure light text stays readable on the dark mid-field. */
+function ensureTextOn(midRgb: RGB, t: HSL, minRatio: number): HSL {
+  let cur = { ...t };
+  for (let i = 0; i < 5; i++) {
+    if (getContrastRatio(midRgb, hslToRgb(cur.h, cur.s, cur.l)) >= minRatio) break;
+    cur.l = Math.min(94, cur.l + 4);
+    cur.s = Math.max(0, cur.s * 0.88);
+  }
+  return cur;
+}
+
+/**
+ * Single-hue role map from Color Thief:
+ *   bg (dark wash) · facts (soft tinted ivory) · strip (near-white ladder)
+ *   progress/active dot (clear muted accent)
+ * Not too neon (S/L caps), not too dull (present bg + visible bar).
  */
 function buildRpiThemeFromThief(swatches: SwatchMap, palette: Color[]): RpiTheme | null {
-  const chromeSrc = pickMutedChrome(swatches);
-  const quoteSrc = pickLightMutedQuote(swatches);
-  // Need at least chrome or quote from Thief; pure failure → null → soft fallback
-  if (!chromeSrc && !quoteSrc) return null;
+  const album = pickAlbumHue(swatches, palette);
+  if (!album) return null;
 
-  const { primary, secondary } = pickBgHues(swatches, palette);
+  let H = album.h;
+  let baseS = album.s;
 
-  const bgS = clamp(Math.max(primary.s, 8) * 0.5, 6, 40);
-  const bgL = clamp(10 + (primary.l > 50 ? 2 : 0), 7, 14);
-  const edgeS = clamp(Math.max(secondary.s, 6) * 0.45, 4, 36);
-  const edgeL = clamp(bgL - 4, 4, 10);
-  const midS = clamp((bgS + edgeS) / 2, 5, 38);
-  const midL = clamp((bgL + edgeL) / 2 + 1, 6, 12);
-
-  const bgCenter = hslToString(primary.h, bgS, bgL);
-  const bgMid = hslToString(secondary.h, midS, midL);
-  const bgEdge = hslToString(secondary.h, edgeS, edgeL);
-  const midRgb = hslToRgb(secondary.h, midS, midL);
-
-  // --- Chrome: Muted (status bar, dots, title/artist/zone/time) ---
-  const chromeBase = chromeSrc ?? quoteSrc!;
-  let bar = muteAccent(chromeBase.h, chromeBase.s, chromeBase.l);
-  if (isUnwantedBlueHue(bar.h, bar.s) && bar.s >= 12) {
-    bar = { h: 0, s: 0, l: 54 };
-  }
-  let barRgb = hslToRgb(bar.h, bar.s, bar.l);
-  if (getContrastRatio(midRgb, barRgb) < 2.5) {
-    bar = { ...bar, l: Math.min(bar.l + 8, 58) };
+  // Cool-blue mud → neutralize (keeps #6d87ba-class accents away)
+  if (isUnwantedBlueHue(H, baseS) && baseS >= 12) {
+    H = 0;
+    baseS = 0;
   }
 
-  // Strip text: same hue as Muted, lighter for couch distance
-  const titleHsl = asReadableTint(chromeBase.h, chromeBase.s, chromeBase.l, 78, 24);
-  const artistHsl = asReadableTint(chromeBase.h, chromeBase.s * 0.85, chromeBase.l, 72, 20);
-  const metaHsl = asReadableTint(chromeBase.h, chromeBase.s * 0.7, chromeBase.l, 68, 16);
+  const chromatic = baseS >= 8;
 
-  // Ensure strip text contrast on dark field
-  const ensureText = (t: HSL, minRatio: number): HSL => {
-    let cur = { ...t };
-    for (let i = 0; i < 4; i++) {
-      if (getContrastRatio(midRgb, hslToRgb(cur.h, cur.s, cur.l)) >= minRatio) break;
-      cur.l = Math.min(92, cur.l + 5);
-      cur.s = Math.max(0, cur.s * 0.9);
-    }
-    return cur;
-  };
-  const title = ensureText(titleHsl, 4.5);
-  const artist = ensureText(artistHsl, 3.5);
-  const meta = ensureText(metaHsl, 3.0);
+  // --- Background: same H, quiet but present (not pure void) ---
+  const bgS = chromatic ? clamp(baseS * 0.38, 10, 20) : 0;
+  const bgL = 9;
+  const midS = chromatic ? clamp(bgS * 0.9, 8, 18) : 0;
+  const midL = 7;
+  const edgeS = chromatic ? clamp(bgS * 0.75, 6, 16) : 0;
+  const edgeL = 4;
 
-  // --- Quote (hero fact): LightMuted ---
-  const qBase = quoteSrc ?? {
-    h: chromeBase.h,
-    s: clamp(chromeBase.s * 0.5, 0, 18),
-    l: 82,
-  };
-  let quote = asReadableTint(qBase.h, qBase.s, qBase.l, 80, 26);
-  quote = ensureText(quote, 4.5);
+  const bgCenter = hslToString(H, bgS, bgL);
+  const bgMid = hslToString(H, midS, midL);
+  const bgEdge = hslToString(H, edgeS, edgeL);
+  const midRgb = hslToRgb(H, midS, midL);
 
-  const progressFill = hslCss(bar.h, bar.s, bar.l);
-  const progressTrack = hslCss(bar.h, clamp(bar.s, 4, 18), clamp(bgL + 14, 16, 26), 0.4);
-  const dotActive = progressFill;
-  const dot = hslCss(bar.h, bar.s, bar.l, 0.38);
+  // --- Progress: primary accent (moderate sat, mid L) ---
+  let barH = H;
+  let barS = chromatic ? clamp(baseS * 0.55, 18, 28) : 0;
+  let barL = chromatic ? 52 : 54;
+  if (!chromatic) {
+    barH = 0;
+    barS = 0;
+    barL = 54;
+  }
+  // Extra safety vs muteAccent neon path for hot Vibrant-derived H
+  barS = clamp(barS, 0, ACCENT_S_MAX);
+  barL = clamp(barL, ACCENT_L_MIN, 56);
+  if (getContrastRatio(midRgb, hslToRgb(barH, barS, barL)) < 2.6) {
+    barL = Math.min(58, barL + 8);
+  }
+
+  // --- Facts: soft ivory with album temperature ---
+  let factH = H;
+  let factS = chromatic ? clamp(baseS * 0.32, 10, 16) : 0;
+  let factL = 88;
+  if (!chromatic) {
+    factH = 0;
+    factS = 0;
+    factL = 90;
+  }
+  const fact = ensureTextOn(midRgb, { h: factH, s: factS, l: factL }, 4.5);
+
+  // --- Strip: near-white ladder, tiny same-hue bias (not muddy Muted text) ---
+  let stripS = chromatic ? clamp(baseS * 0.18, 4, 10) : 0;
+  const title = ensureTextOn(midRgb, { h: H, s: stripS, l: 93 }, 4.5);
+  // Artist / meta via opacity for clean hierarchy (same temperature)
+  const artistColor = hslCss(title.h, title.s, Math.min(title.l, 90), 0.78);
+  const metaColor = hslCss(title.h, clamp(title.s * 0.85, 0, 8), Math.min(title.l, 88), 0.62);
+  const sepColor = hslCss(title.h, clamp(title.s * 0.7, 0, 6), Math.min(title.l, 86), 0.42);
+
+  const progressFill = hslCss(barH, barS, barL);
+  const progressTrack = hslCss(barH, clamp(barS, 0, 16), clamp(bgL + 12, 16, 24), 0.32);
+  // Idle dots: soft neutral (not purple-gray mud); active = bar
+  const dotIdle = chromatic
+    ? hslCss(H, clamp(stripS, 0, 8), 90, 0.28)
+    : 'rgba(242, 242, 242, 0.28)';
 
   return {
     background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
-    factText: hslCss(quote.h, quote.s, quote.l),
-    factMuted: hslCss(quote.h, quote.s, quote.l, 0.72),
+    factText: hslCss(fact.h, fact.s, fact.l),
+    factMuted: hslCss(fact.h, fact.s, fact.l, 0.72),
     title: hslCss(title.h, title.s, title.l),
-    artist: hslCss(artist.h, artist.s, artist.l),
-    meta: hslCss(meta.h, meta.s, meta.l),
-    sep: hslCss(meta.h, meta.s, meta.l, 0.5),
+    artist: artistColor,
+    meta: metaColor,
+    sep: sepColor,
     progressTrack,
     progressFill,
-    dot,
-    dotActive,
-    coverRing: hslCss(bar.h, clamp(bgS, 6, 22), clamp(bgL + 10, 14, 24), 0.5),
+    dot: dotIdle,
+    dotActive: progressFill,
+    coverRing: hslCss(barH, clamp(bgS, 0, 18), clamp(bgL + 10, 14, 24), 0.45),
   };
 }
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.2] - 2026-08-01
+
+### Changed
+
+- **RPi Facts Carousel color system:** single album hue staged by role (dark wash background, soft tinted facts, near-white strip ladder, muted progress accent). Avoids dual fighting tints (e.g. cream quote + purple dock), stays non-neon with sat/lightness caps, less dull than Muted-on-all-text.
+
 ## [2.0.1] - 2026-07-30
 
 ### Changed
