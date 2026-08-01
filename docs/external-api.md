@@ -1,6 +1,6 @@
 # External Sources API
 
-This API allows external music sources to push now-playing data to the Roon Screen Cover display system.
+This API allows external music sources to push now-playing data to the Roon Now Playing display system.
 
 ## Overview
 

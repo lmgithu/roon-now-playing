@@ -106,9 +106,9 @@ async function main(): Promise<void> {
         res.status(200).send(`
           <!DOCTYPE html>
           <html>
-            <head><title>Roon Screen Cover</title></head>
+            <head><title>Roon Now Playing</title></head>
             <body>
-              <h1>Roon Screen Cover</h1>
+              <h1>Roon Now Playing</h1>
               <p>Client not built. Run <code>pnpm build:client</code> or <code>pnpm dev</code></p>
             </body>
           </html>

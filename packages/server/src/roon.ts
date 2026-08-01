@@ -62,10 +62,10 @@ export class RoonClient extends EventEmitter {
     this.roon = new RoonApi({
       extension_id: 'com.github.roon-now-playing',
       display_name: 'Roon Now Playing',
-      display_version: '1.9.0',
-      publisher: 'roon-screen-cover',
+      display_version: '2.0.0',
+      publisher: 'Roon Now Playing',
       email: 'noreply@example.com',
-      website: 'https://github.com/arthursoares/roon-screen-cover',
+      website: 'https://github.com/lmgithu/roon-now-playing',
       log_level: 'none',
 
       set_persisted_state: (state: Record<string, unknown>) => {

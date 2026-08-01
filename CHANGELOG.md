@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.7] - 2026-08-01
+
+### Changed
+
+- **Roon extension:** `display_version` **1.9.0 → 2.0.0**; publisher/website aligned with this fork; user-facing **Roon Screen Cover** labels renamed to **Roon Now Playing** (page title, server fallback page, docs). Internal npm package names (`@roon-screen-cover/*`) and localStorage keys unchanged for compatibility.
+
 ## [2.0.6] - 2026-08-01
 
 ### Fixed
