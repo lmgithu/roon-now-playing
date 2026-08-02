@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.19] - 2026-08-02
+
+### Changed
+
+- **RPi Facts Carousel:** thinner progress bar (~2–3px less height) for a finer status strip.
+
 ## [2.0.18] - 2026-08-02
 
 ### Changed

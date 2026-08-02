@@ -414,7 +414,8 @@ onUnmounted(() => {
 }
 
 .progress-line {
-  height: clamp(5px, 0.45cqi, 9px);
+  /* Slightly thinner than prior 5–9px for a finer status strip */
+  height: clamp(3px, 0.32cqi, 6px);
   background: var(--rpi-progress-track, rgba(245, 245, 245, 0.16));
   border-radius: 999px;
   overflow: hidden;
