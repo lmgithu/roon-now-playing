@@ -360,9 +360,8 @@ onUnmounted(() => {
   height: clamp(72px, 12cqi, 160px);
   border-radius: clamp(2px, 0.22cqi, 5px);
   overflow: hidden;
-  background: var(--rpi-cover-ring, rgba(255, 255, 255, 0.08));
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
-  outline: 1px solid var(--rpi-cover-ring, rgba(255, 255, 255, 0.08));
+  /* Same family as Cover layout dark-mode shadow (0 20px 50px / 0.45), scaled for thumbnail */
+  box-shadow: 0 clamp(6px, 1.1cqi, 10px) clamp(16px, 2.8cqi, 28px) rgba(0, 0, 0, 0.45);
 }
 
 .cover-art {

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.18] - 2026-08-02
+
+### Changed
+
+- **RPi Facts Carousel:** cover thumbnail shadow matches Cover layout (dark soft drop, scaled for the small art); removed outline/ring edge.
+
 ## [2.0.17] - 2026-08-02
 
 ### Changed
