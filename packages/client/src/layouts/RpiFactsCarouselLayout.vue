@@ -292,11 +292,6 @@ onUnmounted(() => {
   max-width: 100%;
   box-sizing: border-box;
   color: var(--rpi-fact, #f5f5f5);
-  /* Subtitle-style stack: crisp edge + soft halo (TV-readable, no CSS filter) */
-  text-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.95),
-    0 2px 2px rgba(0, 0, 0, 0.85),
-    0 3px 12px rgba(0, 0, 0, 0.65);
   /* Sequential fade only — single layer, never two facts overlapping */
   transition: opacity 0.32s ease-in-out;
   will-change: opacity;
@@ -342,10 +337,6 @@ onUnmounted(() => {
   font-weight: var(--font-semibold);
   margin: 0;
   color: var(--rpi-fact, #f5f5f5);
-  text-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.95),
-    0 2px 2px rgba(0, 0, 0, 0.85),
-    0 3px 12px rgba(0, 0, 0, 0.65);
 }
 
 .zone-hint {
@@ -403,23 +394,6 @@ onUnmounted(() => {
   font-size: calc(var(--fluid-subtitle) * var(--font-scale, 1));
   white-space: nowrap;
   overflow: hidden;
-}
-
-/* Lighter subtitle stack for smaller NP strip type (same idea as fact text, less glow) */
-.np-title,
-.np-artist,
-.np-sep,
-.zone-name,
-.source-label,
-.quality-label,
-.meta-dot,
-.time-info,
-.loading-hint,
-.error-hint,
-.zone-hint {
-  text-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.9),
-    0 1px 4px rgba(0, 0, 0, 0.55);
 }
 
 .np-title {

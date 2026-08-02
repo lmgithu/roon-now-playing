@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.17] - 2026-08-02
+
+### Changed
+
+- **RPi Facts Carousel:** remove text drop shadows so fact and status-strip type match the other layouts (no halo).
+
 ## [2.0.16] - 2026-08-02
 
 ### Changed
