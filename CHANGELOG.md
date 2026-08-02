@@ -2,11 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.26] - 2026-08-02
+
+### Fixed
+
+- **Admin access gate:** Safari/iOS still treated the field as a password despite `autocomplete=off`. Gate no longer uses `<form>` or `type="password"`; masked `type="text"` (`-webkit-text-security: disc`) so Keychain autofill and “Save Password” stay off. (Re-release after cancelling stuck 2.0.25 Docker builds.)
+
 ## [2.0.25] - 2026-08-02
 
 ### Fixed
 
-- **Admin access gate:** Safari/iOS still treated the field as a password despite `autocomplete=off`. Gate no longer uses `<form>` or `type="password"`; masked `type="text"` (`-webkit-text-security: disc`) so Keychain autofill and “Save Password” stay off.
+- Same admin-gate fix as 2.0.26 (Docker publish for 2.0.25 was cancelled mid-build).
 
 ## [2.0.24] - 2026-08-02
 
