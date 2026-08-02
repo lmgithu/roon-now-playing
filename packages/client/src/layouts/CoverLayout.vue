@@ -5,6 +5,7 @@ import DynamicBackground from '../components/DynamicBackground.vue';
 import { useColorExtraction } from '../composables/useColorExtraction';
 import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
+import { DYNAMIC_BACKGROUND_TYPES } from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
     track: Track | null;
@@ -22,38 +23,22 @@ const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: () => props.track,
   progress: () => props.progress,
-  includeBackground: false,
+  includeBackground: true,
 });
-
 
 const backgroundRef = computed(() => props.background);
 const artworkUrlRef = computed(() => props.artworkUrl);
 const { colors, vibrantGradient, palette } = useColorExtraction(artworkUrlRef);
 const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, vibrantGradient);
 
-// Background types handled by DynamicBackground component
-const dynamicBackgroundTypes: BackgroundType[] = [
-  'gradient-linear-multi',
-  'gradient-radial-corner',
-  'gradient-mesh',
-  'blur-subtle',
-  'blur-heavy',
-  'duotone',
-  'posterized',
-  'gradient-noise',
-  'blur-grain',
-];
-
 const usesDynamicBackground = computed(() =>
-  dynamicBackgroundTypes.includes(props.background)
+  (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
 );
 
-// Determine if dark mode based on background type
+// Dark chrome for cover shadow on nearly all remaining backgrounds
 const isDarkMode = computed(() => {
-    if (props.background === 'white') return false;
     if (props.background === 'black') return true;
-    // For color-based backgrounds, use the extracted color mode
-    return colors.value.mode === 'dark';
+    return colors.value.mode !== 'light';
 });
 
 // Track previous artwork for crossfade
@@ -84,13 +69,10 @@ const layoutClass = computed(() => ({
 }));
 
 const rootStyle = computed(() => {
-  if (!isDarkMode.value) {
-    return backgroundStyle.value || {};
+  if (props.background === 'gradient-simple') {
+    return albumChrome.value;
   }
-  return {
-    ...(backgroundStyle.value || {}),
-    ...albumChrome.value,
-  };
+  return backgroundStyle.value || {};
 });
 </script>
 

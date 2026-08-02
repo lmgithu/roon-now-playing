@@ -8,11 +8,14 @@ export interface BackgroundStyleResult {
   needsColorExtraction: ComputedRef<boolean>;
 }
 
+/** Types that need DynamicBackground (artwork image / special layers) */
+export const DYNAMIC_BACKGROUND_TYPES: readonly BackgroundType[] = [
+  'gradient-radial-corner',
+  'blur-grain',
+] as const;
+
 /**
  * Composable for generating background styles based on background type
- * @param backgroundType - The selected background type
- * @param colors - Optional extracted colors from artwork (for dominant background)
- * @param vibrantGradient - Optional vibrant gradient colors (for gradient backgrounds)
  */
 export function useBackgroundStyle(
   backgroundType: Ref<BackgroundType>,
@@ -20,23 +23,11 @@ export function useBackgroundStyle(
   vibrantGradient?: Ref<VibrantGradient>
 ): BackgroundStyleResult {
   const needsColorExtraction = computed(() => {
-    return [
-      'dominant',
-      'gradient-radial',
-      'gradient-linear',
-      'gradient-linear-multi',
-      'gradient-radial-corner',
-      'gradient-mesh',
-      'blur-subtle',
-      'blur-heavy',
-      'duotone',
-      'posterized',
-      'gradient-noise',
-      'blur-grain',
-    ].includes(backgroundType.value);
+    return (
+      backgroundType.value !== 'black'
+    );
   });
 
-  // Progress bar colors that match the text color (light text = light bar, dark text = dark bar)
   const lightProgressBar = {
     '--progress-bar-bg': 'rgba(255, 255, 255, 0.2)',
     '--progress-bar-fill': 'rgba(255, 255, 255, 0.9)',
@@ -61,17 +52,7 @@ export function useBackgroundStyle(
           ...lightProgressBar,
         };
 
-      case 'white':
-        return {
-          background: '#ffffff',
-          '--text-color': '#1a1a1a',
-          '--text-secondary': 'rgba(26, 26, 26, 0.8)',
-          '--text-tertiary': 'rgba(26, 26, 26, 0.6)',
-          ...darkProgressBar,
-        };
-
       case 'dominant':
-        // Use vibrant colors for a more punchy dominant background
         if (vibrantGradient?.value?.ready) {
           return {
             background: vibrantGradient.value.center,
@@ -81,12 +62,22 @@ export function useBackgroundStyle(
             ...progressBarForText(vibrantGradient.value.text),
           };
         }
-        // Fallback to black if no colors available
         return {
           background: '#000000',
           '--text-color': '#ffffff',
           '--text-secondary': 'rgba(255, 255, 255, 0.8)',
           '--text-tertiary': 'rgba(255, 255, 255, 0.6)',
+          ...lightProgressBar,
+        };
+
+      case 'gradient-simple':
+        // Field is applied by layouts via useAlbumTheme (RPi single-hue radial).
+        // Only text/progress fallbacks here if theme not layered yet.
+        return {
+          background: 'transparent',
+          '--text-color': '#f5f5f5',
+          '--text-secondary': 'rgba(245, 245, 245, 0.82)',
+          '--text-tertiary': 'rgba(245, 245, 245, 0.7)',
           ...lightProgressBar,
         };
 
@@ -100,7 +91,6 @@ export function useBackgroundStyle(
             ...progressBarForText(vibrantGradient.value.text),
           };
         }
-        // Fallback gradient
         return {
           background: 'radial-gradient(ellipse 120% 100% at 50% 50%, #1a1a1a 0%, #000000 100%)',
           '--text-color': '#ffffff',
@@ -119,7 +109,6 @@ export function useBackgroundStyle(
             ...progressBarForText(vibrantGradient.value.text),
           };
         }
-        // Fallback gradient
         return {
           background: 'linear-gradient(135deg, #1a1a1a 0%, #000000 100%)',
           '--text-color': '#ffffff',
@@ -128,46 +117,17 @@ export function useBackgroundStyle(
           ...lightProgressBar,
         };
 
-      // Gradient types handled by DynamicBackground component
-      // These provide text color CSS variables based on vibrantGradient mode
-      case 'gradient-linear-multi':
       case 'gradient-radial-corner':
-      case 'gradient-mesh':
-      case 'gradient-noise':
+      case 'blur-grain':
         if (vibrantGradient?.value?.ready) {
           return {
-            background: 'transparent', // DynamicBackground handles the actual background
+            background: 'transparent',
             '--text-color': vibrantGradient.value.text,
             '--text-secondary': vibrantGradient.value.textSecondary,
             '--text-tertiary': vibrantGradient.value.textTertiary,
             ...progressBarForText(vibrantGradient.value.text),
           };
         }
-        // Fallback when colors aren't ready
-        return {
-          background: 'transparent',
-          '--text-color': '#ffffff',
-          '--text-secondary': 'rgba(255, 255, 255, 0.8)',
-          '--text-tertiary': 'rgba(255, 255, 255, 0.6)',
-          ...lightProgressBar,
-        };
-
-      // Artwork-based types that use extracted colors for text
-      case 'blur-subtle':
-      case 'blur-heavy':
-      case 'blur-grain':
-      case 'duotone':
-      case 'posterized':
-        if (colors?.value) {
-          return {
-            background: 'transparent', // DynamicBackground handles the actual background
-            '--text-color': colors.value.text,
-            '--text-secondary': colors.value.textSecondary,
-            '--text-tertiary': colors.value.textTertiary,
-            ...progressBarForText(colors.value.text),
-          };
-        }
-        // Fallback when colors aren't ready
         return {
           background: 'transparent',
           '--text-color': '#ffffff',

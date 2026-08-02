@@ -249,23 +249,16 @@ describe('Facts Types', () => {
   });
 
   describe('BACKGROUNDS', () => {
-    it('should include all 14 background types', () => {
-      expect(BACKGROUNDS).toContain('black');
-      expect(BACKGROUNDS).toContain('white');
-      expect(BACKGROUNDS).toContain('dominant');
-      expect(BACKGROUNDS).toContain('gradient-radial');
-      expect(BACKGROUNDS).toContain('gradient-linear');
-      // New types
-      expect(BACKGROUNDS).toContain('gradient-linear-multi');
-      expect(BACKGROUNDS).toContain('gradient-radial-corner');
-      expect(BACKGROUNDS).toContain('gradient-mesh');
-      expect(BACKGROUNDS).toContain('blur-subtle');
-      expect(BACKGROUNDS).toContain('blur-heavy');
-      expect(BACKGROUNDS).toContain('duotone');
-      expect(BACKGROUNDS).toContain('posterized');
-      expect(BACKGROUNDS).toContain('gradient-noise');
-      expect(BACKGROUNDS).toContain('blur-grain');
-      expect(BACKGROUNDS.length).toBe(14);
+    it('should include the trimmed background set', () => {
+      expect(BACKGROUNDS).toEqual([
+        'black',
+        'dominant',
+        'gradient-simple',
+        'gradient-radial',
+        'gradient-linear',
+        'gradient-radial-corner',
+        'blur-grain',
+      ]);
     });
 
     it('should have display names for all background types', () => {
@@ -277,7 +270,7 @@ describe('Facts Types', () => {
 
     it('should have category for all background types', () => {
       for (const bg of BACKGROUNDS) {
-        expect(BACKGROUND_CONFIG[bg].category).toMatch(/^(basic|gradient|artwork|textured)$/);
+        expect(BACKGROUND_CONFIG[bg].category).toMatch(/^(basic|gradient|artwork)$/);
       }
     });
   });

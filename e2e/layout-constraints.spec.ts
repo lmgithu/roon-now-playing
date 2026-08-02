@@ -556,18 +556,11 @@ test.describe('Matrix', () => {
   // Keep in sync with BACKGROUNDS in packages/shared/src/index.ts
   const backgrounds = [
     'black',
-    'white',
     'dominant',
+    'gradient-simple',
     'gradient-radial',
     'gradient-linear',
-    'gradient-linear-multi',
     'gradient-radial-corner',
-    'gradient-mesh',
-    'blur-subtle',
-    'blur-heavy',
-    'duotone',
-    'posterized',
-    'gradient-noise',
     'blur-grain',
   ];
 

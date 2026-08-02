@@ -84,44 +84,34 @@ export const FONT_CONFIG: Record<FontType, { displayName: string; googleFont: st
   'work-sans': { displayName: 'Work Sans', googleFont: 'Work+Sans:wght@300;400;500;600;700' },
 };
 
-// Background options
+// Background options (trimmed for display UI)
 export const BACKGROUNDS = [
   'black',
-  'white',
   'dominant',
+  'gradient-simple',
   'gradient-radial',
   'gradient-linear',
-  'gradient-linear-multi',
   'gradient-radial-corner',
-  'gradient-mesh',
-  'blur-subtle',
-  'blur-heavy',
-  'duotone',
-  'posterized',
-  'gradient-noise',
   'blur-grain',
 ] as const;
 export type BackgroundType = (typeof BACKGROUNDS)[number];
 
+/** Default for new screens / invalid stored values (RPi album-tinted field) */
+export const DEFAULT_BACKGROUND: BackgroundType = 'gradient-simple';
+
 // Background category type
-export type BackgroundCategory = 'basic' | 'gradient' | 'artwork' | 'textured';
+export type BackgroundCategory = 'basic' | 'gradient' | 'artwork';
 
 // Background display names and categories
 export const BACKGROUND_CONFIG: Record<BackgroundType, { displayName: string; category: BackgroundCategory }> = {
   'black': { displayName: 'Black', category: 'basic' },
-  'white': { displayName: 'White', category: 'basic' },
   'dominant': { displayName: 'Dominant Color', category: 'basic' },
+  /** Album single-hue radial (former RPi Facts Carousel default field) */
+  'gradient-simple': { displayName: 'Simple Gradient', category: 'gradient' },
   'gradient-radial': { displayName: 'Radial Gradient', category: 'gradient' },
   'gradient-linear': { displayName: 'Linear Gradient', category: 'gradient' },
-  'gradient-linear-multi': { displayName: 'Multi-Color Linear', category: 'gradient' },
-  'gradient-radial-corner': { displayName: 'Corner Radial', category: 'gradient' },
-  'gradient-mesh': { displayName: 'Mesh Gradient', category: 'gradient' },
-  'blur-subtle': { displayName: 'Subtle Blur', category: 'artwork' },
-  'blur-heavy': { displayName: 'Heavy Blur', category: 'artwork' },
-  'duotone': { displayName: 'Duotone', category: 'artwork' },
-  'posterized': { displayName: 'Posterized', category: 'artwork' },
-  'gradient-noise': { displayName: 'Noise Gradient', category: 'textured' },
-  'blur-grain': { displayName: 'Grainy Blur', category: 'textured' },
+  'gradient-radial-corner': { displayName: 'Corner Gradient', category: 'gradient' },
+  'blur-grain': { displayName: 'Grainy Blur', category: 'artwork' },
 };
 
 // LLM Provider options

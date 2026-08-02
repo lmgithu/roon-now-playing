@@ -6,10 +6,13 @@
  * Typography is TV-first: dock chrome scales with viewport; fact size is length-aware
  * so long AI quotes still fit while short ones stay grand.
  */
-import { computed, ref, watch, onUnmounted } from 'vue';
+import { computed, ref, watch, onUnmounted, type CSSProperties } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
 import { useFacts } from '../composables/useFacts';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
+import { useColorExtraction } from '../composables/useColorExtraction';
+import { useBackgroundStyle, DYNAMIC_BACKGROUND_TYPES } from '../composables/useBackgroundStyle';
+import DynamicBackground from '../components/DynamicBackground.vue';
 
 const props = defineProps<{
   track: Track | null;
@@ -28,11 +31,40 @@ const stateRef = computed(() => props.state);
 
 const { facts, currentFactIndex, currentFact, isLoading, error } = useFacts(trackRef, stateRef);
 
-const { cssVars: layoutStyle } = useAlbumTheme({
+// Album chrome always (facts/strip/progress tints). Field bg only for Simple Gradient.
+const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: trackRef,
   progress: () => props.progress,
   includeBackground: true,
+});
+
+const backgroundRef = computed(() => props.background);
+const artworkUrlRef = computed(() => props.artworkUrl);
+const { colors, vibrantGradient, palette } = useColorExtraction(artworkUrlRef);
+const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, vibrantGradient);
+
+const usesDynamicBackground = computed(() =>
+  (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
+);
+
+/** Simple Gradient = classic RPi album radial; other types from preference */
+const layoutStyle = computed((): CSSProperties => {
+  if (props.background === 'gradient-simple') {
+    return albumChrome.value;
+  }
+  // Keep album-tinted fact/strip/progress; override only the field background
+  const { background: _albumBg, ...chrome } = albumChrome.value as CSSProperties & {
+    background?: string;
+  };
+  void _albumBg;
+  if (usesDynamicBackground.value) {
+    return { ...chrome, ...backgroundStyle.value };
+  }
+  return {
+    ...chrome,
+    ...backgroundStyle.value,
+  };
 });
 
 /**
@@ -175,7 +207,78 @@ onUnmounted(() => {
 
 
 <template>
-  <div class="rpi-facts-carousel-layout" :style="layoutStyle">
+  <DynamicBackground
+    v-if="usesDynamicBackground"
+    :type="background"
+    :artwork-url="artworkUrl"
+    :palette="palette"
+    :vibrant-gradient="vibrantGradient"
+    class="rpi-facts-carousel-layout"
+    :style="layoutStyle"
+  >
+    <div class="content">
+      <div class="safe-zone">
+        <div class="facts-area">
+          <div v-if="!track" class="no-playback">
+            <p class="no-playback-text">No playback</p>
+            <p class="zone-hint">{{ zoneName }}</p>
+          </div>
+          <template v-else>
+            <p v-if="isLoading && !displayFact" class="loading-hint">Loading facts…</p>
+            <p
+              v-else-if="displayFact"
+              class="fact-text"
+              :class="`fact-${factDensity}`"
+              :style="{ opacity: factOpacity }"
+            >{{ displayFact }}</p>
+            <p v-else-if="error && error.type === 'no-key'" class="error-hint">
+              Configure API key in <a href="/admin">Admin</a>
+            </p>
+            <div v-if="facts.length > 1" class="fact-dots">
+              <span
+                v-for="(_, index) in facts"
+                :key="index"
+                class="dot"
+                :class="{ active: index === currentFactIndex }"
+              />
+            </div>
+          </template>
+        </div>
+        <div v-if="track" class="now-playing-row">
+          <div class="cover-wrap">
+            <img v-if="artworkUrl" :src="artworkUrl" alt="" class="cover-art" decoding="async" />
+            <div v-else class="cover-placeholder" />
+          </div>
+          <div class="now-playing">
+            <div class="np-line">
+              <span class="np-title">{{ track.title }}</span>
+              <span class="np-sep">·</span>
+              <span class="np-artist">{{ track.artist }}</span>
+            </div>
+            <div class="progress-line" :class="{ 'is-paused': !isPlaying }">
+              <div class="progress-fill" />
+            </div>
+            <div class="np-meta">
+              <span class="meta-left">
+                <span class="zone-name">{{ zoneName }}</span>
+                <template v-if="track.source_label">
+                  <span class="meta-dot" aria-hidden="true">·</span>
+                  <span class="source-label">{{ track.source_label }}</span>
+                </template>
+                <template v-if="track.quality_label">
+                  <span class="meta-dot" aria-hidden="true">·</span>
+                  <span class="quality-label">{{ track.quality_label }}</span>
+                </template>
+              </span>
+              <span class="time-info">{{ currentTime }} / {{ duration }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </DynamicBackground>
+
+  <div v-else class="rpi-facts-carousel-layout" :style="layoutStyle">
     <div class="content">
       <div class="safe-zone">
         <!-- Fact (hero) -->

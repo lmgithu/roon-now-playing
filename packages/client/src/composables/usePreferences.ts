@@ -1,5 +1,5 @@
 import { ref, watch, onMounted } from 'vue';
-import { LAYOUTS, DEFAULT_LAYOUT, FONTS, BACKGROUNDS, type LayoutType, type FontType, type BackgroundType } from '@roon-screen-cover/shared';
+import { LAYOUTS, DEFAULT_LAYOUT, FONTS, BACKGROUNDS, DEFAULT_BACKGROUND, type LayoutType, type FontType, type BackgroundType } from '@roon-screen-cover/shared';
 
 const STORAGE_KEY_ZONE = 'roon-screen-cover:zone';
 const STORAGE_KEY_LAYOUT = 'roon-screen-cover:layout';
@@ -35,7 +35,7 @@ export function usePreferences() {
   const preferredZone = ref<string | null>(null);
   const layout = ref<LayoutType>(DEFAULT_LAYOUT);
   const font = ref<FontType>('system');
-  const background = ref<BackgroundType>('black');
+  const background = ref<BackgroundType>(DEFAULT_BACKGROUND);
   const enabledLayouts = ref<LayoutType[] | null>(null);
 
   function getUrlParams(): { zone: string | null; layout: LayoutType | null; font: FontType | null; background: BackgroundType | null } {

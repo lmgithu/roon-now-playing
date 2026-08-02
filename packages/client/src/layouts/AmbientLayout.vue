@@ -5,6 +5,8 @@ import { useColorExtraction } from '../composables/useColorExtraction';
 import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import ProgressBar from '../components/ProgressBar.vue';
 import DynamicBackground from '../components/DynamicBackground.vue';
+import { useAlbumTheme } from '../composables/useAlbumTheme';
+import { DYNAMIC_BACKGROUND_TYPES } from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
   track: Track | null;
@@ -23,21 +25,15 @@ const artworkUrlRef = computed(() => props.artworkUrl);
 const { colors, vibrantGradient, palette, isTransitioning } = useColorExtraction(artworkUrlRef);
 const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, vibrantGradient);
 
-// Background types handled by DynamicBackground component
-const dynamicBackgroundTypes: BackgroundType[] = [
-  'gradient-linear-multi',
-  'gradient-radial-corner',
-  'gradient-mesh',
-  'blur-subtle',
-  'blur-heavy',
-  'duotone',
-  'posterized',
-  'gradient-noise',
-  'blur-grain',
-];
+const { cssVars: albumChrome } = useAlbumTheme({
+  artworkUrl: () => props.artworkUrl,
+  track: () => props.track,
+  progress: () => props.progress,
+  includeBackground: true,
+});
 
 const usesDynamicBackground = computed(() =>
-  dynamicBackgroundTypes.includes(props.background)
+  (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
 );
 
 // Track previous artwork for crossfade
@@ -72,13 +68,22 @@ const ambientStyle = computed(() => {
     '--progress-bar-height': '6px',
     '--progress-time-size': 'clamp(14px, 1.5vw, 18px)',
     '--progress-bar-bg': lightText ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.18)',
-    // Same white/black family as title/artist — not Color Thief accent
     '--progress-bar-fill': lightText ? '#1a1a1a' : '#f5f5f5',
   };
 
-  // For new background types, DynamicBackground handles the background
+  // Simple Gradient: RPi-style album single-hue radial
+  if (props.background === 'gradient-simple') {
+    return {
+      ...albumChrome.value,
+      ...cssVariables,
+      // Keep text-matched progress, not album accent
+      '--progress-bar-bg': cssVariables['--progress-bar-bg'],
+      '--progress-bar-fill': cssVariables['--progress-bar-fill'],
+    };
+  }
+
   if (usesDynamicBackground.value) {
-    return cssVariables;
+    return { ...backgroundStyle.value, ...cssVariables };
   }
 
   const baseStyle = { ...backgroundStyle.value };
@@ -93,7 +98,6 @@ const ambientStyle = computed(() => {
   };
 });
 
-// Ambient: no album-theme progress tint — root style is ambient contrast chrome only
 const rootStyle = ambientStyle;
 
 </script>

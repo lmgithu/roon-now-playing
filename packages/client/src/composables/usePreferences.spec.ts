@@ -128,32 +128,22 @@ describe('usePreferences', () => {
     expect(layout.value).toBe('ambient');
   });
 
-  // New background type tests
-  it('should accept gradient-mesh background from URL', () => {
-    window.history.replaceState({}, '', '/?background=gradient-mesh');
+  it('should accept gradient-simple background from URL', () => {
+    window.history.replaceState({}, '', '/?background=gradient-simple');
 
     const { background, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(background.value).toBe('gradient-mesh');
+    expect(background.value).toBe('gradient-simple');
   });
 
-  it('should accept blur-subtle background from URL', () => {
-    window.history.replaceState({}, '', '/?background=blur-subtle');
+  it('should accept blur-grain background from URL', () => {
+    window.history.replaceState({}, '', '/?background=blur-grain');
 
     const { background, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(background.value).toBe('blur-subtle');
-  });
-
-  it('should accept duotone background from URL', () => {
-    window.history.replaceState({}, '', '/?background=duotone');
-
-    const { background, loadPreferences } = usePreferences();
-    loadPreferences();
-
-    expect(background.value).toBe('duotone');
+    expect(background.value).toBe('blur-grain');
   });
 
   it('should reject invalid background from URL', () => {
@@ -162,15 +152,15 @@ describe('usePreferences', () => {
     const { background, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(background.value).toBe('black'); // Default
+    expect(background.value).toBe('gradient-simple'); // Default
   });
 
-  it('should save new background types to localStorage', () => {
+  it('should save background types to localStorage', () => {
     const { saveBackgroundPreference, background } = usePreferences();
 
-    saveBackgroundPreference('gradient-noise');
+    saveBackgroundPreference('gradient-radial');
 
-    expect(background.value).toBe('gradient-noise');
-    expect(localStorage.getItem('roon-screen-cover:background')).toBe('gradient-noise');
+    expect(background.value).toBe('gradient-radial');
+    expect(localStorage.getItem('roon-screen-cover:background')).toBe('gradient-radial');
   });
 });

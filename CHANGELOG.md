@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.27] - 2026-08-02
+
+### Changed
+
+- **Backgrounds trimmed:** Basic: Black, Dominant Color. Gradients: Simple Gradient (RPi album radial, default), Radial, Linear, Corner. Artwork (renamed from Textured): Grainy Blur only. Removed White and all other artwork/textured options.
+- **All layouts** (RPi Facts Carousel, Ambient, Cover, Fullscreen) respect the selected display background; Simple Gradient uses the former RPi-only album field.
+
 ## [2.0.26] - 2026-08-02
 
 ### Fixed

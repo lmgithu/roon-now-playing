@@ -5,6 +5,7 @@ import DynamicBackground from '../components/DynamicBackground.vue';
 import { useColorExtraction } from '../composables/useColorExtraction';
 import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
+import { DYNAMIC_BACKGROUND_TYPES } from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
   track: Track | null;
@@ -22,36 +23,26 @@ const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: () => props.track,
   progress: () => props.progress,
-  includeBackground: false,
+  includeBackground: true,
 });
-
 
 const backgroundRef = computed(() => props.background);
 const artworkUrlRef = computed(() => props.artworkUrl);
 const { colors, vibrantGradient, palette } = useColorExtraction(artworkUrlRef);
 const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, vibrantGradient);
 
-const rootStyle = computed(() => ({
-  ...albumChrome.value,
-  ...(backgroundStyle.value || {}),
-}));
-
-// Background types handled by DynamicBackground component
-const dynamicBackgroundTypes: BackgroundType[] = [
-  'gradient-linear-multi',
-  'gradient-radial-corner',
-  'gradient-mesh',
-  'blur-subtle',
-  'blur-heavy',
-  'duotone',
-  'posterized',
-  'gradient-noise',
-  'blur-grain',
-];
-
 const usesDynamicBackground = computed(() =>
-  dynamicBackgroundTypes.includes(props.background)
+  (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
 );
+
+const rootStyle = computed(() => {
+  if (props.background === 'gradient-simple') {
+    return albumChrome.value;
+  }
+  return {
+    ...(backgroundStyle.value || {}),
+  };
+});
 </script>
 
 <template>

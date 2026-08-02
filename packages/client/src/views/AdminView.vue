@@ -1062,11 +1062,6 @@ onMounted(async () => {
                       {{ getBackgroundDisplayName(b) }}
                     </option>
                   </optgroup>
-                  <optgroup label="Textured">
-                    <option v-for="b in BACKGROUNDS.filter(bg => BACKGROUND_CONFIG[bg].category === 'textured')" :key="b" :value="b">
-                      {{ getBackgroundDisplayName(b) }}
-                    </option>
-                  </optgroup>
                 </select>
               </div>
             </div>
