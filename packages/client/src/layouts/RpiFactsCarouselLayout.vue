@@ -297,7 +297,8 @@ onUnmounted(() => {
   justify-content: center;
   align-items: center;
   text-align: center;
-  gap: clamp(0.65rem, 1.6cqb, 1.35rem);
+  /* Air between quote and dots — scales with viewport height, not stuck to the text */
+  gap: clamp(1.1rem, 3cqb, 2.5rem);
   overflow: hidden;
 }
 
@@ -374,6 +375,8 @@ onUnmounted(() => {
   gap: clamp(10px, 1cqi, 20px);
   flex-shrink: 0;
   margin: 0;
+  /* Small extra lift so dots read as a separate control, not a text underline */
+  padding-top: clamp(0.15rem, 0.6cqb, 0.45rem);
 }
 
 .dot {

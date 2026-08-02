@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.23] - 2026-08-02
+
+### Changed
+
+- **RPi Facts Carousel:** more air between fact text and indicator dots (viewport-scaled gap).
+
 ## [2.0.22] - 2026-08-02
 
 ### Changed
