@@ -744,7 +744,15 @@ onMounted(async () => {
 
   <!-- Login gate -->
   <div v-else-if="authRequired && !authenticated" class="admin-auth-gate">
-    <form class="auth-card" @submit.prevent="submitLogin">
+    <form
+      class="auth-card"
+      autocomplete="off"
+      data-lpignore="true"
+      data-1p-ignore="true"
+      data-bwignore="true"
+      data-form-type="other"
+      @submit.prevent="submitLogin"
+    >
       <div class="auth-logo">
         <svg viewBox="0 0 24 24" fill="currentColor" class="logo-icon">
           <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
@@ -753,12 +761,24 @@ onMounted(async () => {
       </div>
       <p class="auth-desc">Enter the admin password to continue. The now-playing display stays open without a password.</p>
       <label class="auth-label" for="admin-login-password">Password</label>
+      <!--
+        Intentionally not a browser “login password” field:
+        autocomplete off + non-login name suppress iOS Keychain / Safari Save Password.
+      -->
       <input
         id="admin-login-password"
         v-model="loginPassword"
         type="password"
+        name="roon-admin-gate"
         class="auth-input"
-        autocomplete="current-password"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        data-lpignore="true"
+        data-1p-ignore="true"
+        data-bwignore="true"
+        data-form-type="other"
         autofocus
         :disabled="loginSubmitting"
       />
@@ -1718,7 +1738,7 @@ onMounted(async () => {
         <div class="config-card">
           <h2 class="card-title">Artwork Scale</h2>
           <p class="card-desc">Adjust the global artwork size. Individual screens can override this setting.</p>
-          <p class="card-hint">Applies to: Detailed, Ambient, and Cover layouts. Fullscreen (full-bleed art) and RPi Facts Carousel use their own artwork sizing.</p>
+          <p class="card-hint">Applies to Ambient and Cover. Fullscreen and RPi Facts Carousel use their own artwork sizing.</p>
 
           <div class="slider-field">
             <div class="slider-header">
@@ -1762,7 +1782,15 @@ onMounted(async () => {
               id="current-admin-password"
               v-model="currentAdminPassword"
               type="password"
-              autocomplete="current-password"
+              name="roon-admin-current"
+              autocomplete="off"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-bwignore="true"
+              data-form-type="other"
               placeholder="Required to change or remove"
             />
           </div>
@@ -1773,7 +1801,15 @@ onMounted(async () => {
               id="new-admin-password"
               v-model="newAdminPassword"
               type="password"
-              autocomplete="new-password"
+              name="roon-admin-new"
+              autocomplete="off"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-bwignore="true"
+              data-form-type="other"
               placeholder="At least 4 characters"
             />
           </div>
@@ -1784,7 +1820,15 @@ onMounted(async () => {
               id="confirm-admin-password"
               v-model="confirmAdminPassword"
               type="password"
-              autocomplete="new-password"
+              name="roon-admin-confirm"
+              autocomplete="off"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-bwignore="true"
+              data-form-type="other"
               placeholder="Repeat password"
             />
           </div>

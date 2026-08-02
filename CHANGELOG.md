@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.24] - 2026-08-02
+
+### Changed
+
+- **Layouts:** removed Detailed. Order: RPi Facts Carousel (default), Ambient, Cover, Fullscreen.
+- **Admin login:** suppress browser password autofill / save prompts (iOS Keychain, Safari Save Password).
+- **Ambient:** progress bar fill matches surrounding text (white/black) — no album-hue tint; sheen and smooth progress kept.
+
 ## [2.0.23] - 2026-08-02
 
 ### Changed

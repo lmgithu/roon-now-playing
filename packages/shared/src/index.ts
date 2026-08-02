@@ -28,13 +28,12 @@ export interface NowPlaying {
   seek_position: number;
 }
 
-// Layout options
+// Layout options (cycle / admin order)
 export const LAYOUTS = [
-  'detailed',
-  'fullscreen',
+  'rpi-facts-carousel',
   'ambient',
   'cover',
-  'rpi-facts-carousel',
+  'fullscreen',
 ] as const;
 export type LayoutType = (typeof LAYOUTS)[number];
 /** Default for new screens / invalid stored values */

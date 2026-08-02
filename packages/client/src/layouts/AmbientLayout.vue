@@ -5,7 +5,6 @@ import { useColorExtraction } from '../composables/useColorExtraction';
 import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import ProgressBar from '../components/ProgressBar.vue';
 import DynamicBackground from '../components/DynamicBackground.vue';
-import { useAlbumTheme } from '../composables/useAlbumTheme';
 
 const props = defineProps<{
   track: Track | null;
@@ -18,14 +17,6 @@ const props = defineProps<{
   zoneName: string;
   background: BackgroundType;
 }>();
-
-const { cssVars: albumChrome } = useAlbumTheme({
-  artworkUrl: () => props.artworkUrl,
-  track: () => props.track,
-  progress: () => props.progress,
-  includeBackground: false,
-});
-
 
 const backgroundRef = computed(() => props.background);
 const artworkUrlRef = computed(() => props.artworkUrl);
@@ -71,40 +62,27 @@ watch(
   { immediate: true }
 );
 
-// Compute the effective color mode based on background type and extracted colors
-const effectiveColorMode = computed(() => {
-  if (props.background === 'white') return 'light';
-  if (props.background === 'black') return 'dark';
-  return colors.value.mode;
-});
-
 const ambientStyle = computed(() => {
-  // CSS variables for ambient-specific styling (used by all background types)
+  // Progress fill matches surrounding text (no album-hue tint); sheen/breath stay on ProgressBar
+  const lightText = colors.value.text === '#1a1a1a';
   const cssVariables = {
     '--bg-color': colors.value.background,
     '--bg-edge': colors.value.backgroundEdge,
     '--shadow-color': colors.value.shadow,
-    // Progress bar customization
     '--progress-bar-height': '6px',
     '--progress-time-size': 'clamp(14px, 1.5vw, 18px)',
-    '--progress-bar-bg': colors.value.text === '#1a1a1a'
-      ? 'rgba(0, 0, 0, 0.15)'
-      : 'rgba(255, 255, 255, 0.15)',
-    '--progress-bar-fill': colors.value.text === '#1a1a1a'
-      ? 'rgba(0, 0, 0, 0.6)'
-      : 'rgba(255, 255, 255, 0.8)',
+    '--progress-bar-bg': lightText ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.18)',
+    // Same white/black family as title/artist — not Color Thief accent
+    '--progress-bar-fill': lightText ? '#1a1a1a' : '#f5f5f5',
   };
 
   // For new background types, DynamicBackground handles the background
-  // We only provide CSS variables
   if (usesDynamicBackground.value) {
     return cssVariables;
   }
 
-  // For original types, include the background styling
   const baseStyle = { ...backgroundStyle.value };
 
-  // For ambient layout, use radial gradient when gradient-radial or dominant is selected
   if (props.background === 'gradient-radial' || props.background === 'dominant') {
     baseStyle.background = `radial-gradient(ellipse 120% 100% at 30% 50%, ${colors.value.background} 0%, ${colors.value.backgroundEdge} 100%)`;
   }
@@ -114,16 +92,9 @@ const ambientStyle = computed(() => {
     ...cssVariables,
   };
 });
-const rootStyle = computed(() => {
-  // Light backgrounds: keep contrast-safe ambient chrome. Dark: layer album accents.
-  if (effectiveColorMode.value === 'light') {
-    return ambientStyle.value;
-  }
-  return {
-    ...ambientStyle.value,
-    ...albumChrome.value,
-  };
-});
+
+// Ambient: no album-theme progress tint — root style is ambient contrast chrome only
+const rootStyle = ambientStyle;
 
 </script>
 

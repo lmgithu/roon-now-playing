@@ -93,11 +93,10 @@ Example: `http://localhost:3000/?zone=Office&layout=detailed&background=gradient
 
 | Layout | Description |
 |--------|-------------|
-| `detailed` | Album artwork alongside title, artist, album, and progress bar. Responsive two-column layout on wider screens. |
-| `fullscreen` | Album artwork centered on screen, scaled to fit. No text overlays. |
+| `rpi-facts-carousel` | Pi 3 / TV facts view: solid album-tinted background (no CSS blur), sharp cover art beside the progress strip, rotating AI facts + time remaining. **Default.** |
 | `ambient` | Color-extracted background with artwork and full track info. Great for 10-foot UI / TV displays. |
 | `cover` | Clean album cover centered with subtle shadow. Artwork crossfades on track changes. |
-| `rpi-facts-carousel` | Pi 3 / weak-GPU facts view: solid album-tinted background (no CSS blur), sharp cover art beside the progress strip, rotating AI facts + time remaining. **Default.** |
+| `fullscreen` | Album artwork centered on screen, scaled to fit. No text overlays. |
 
 **Note:** RPi Facts Carousel requires an LLM provider configured in the Admin panel. Supported providers: Anthropic, OpenAI, OpenRouter, or Local LLM (Ollama/LM Studio).
 
@@ -527,11 +526,10 @@ roon-now-playing/
 │           │   ├── ZonePicker.vue
 │           │   └── ProgressBar.vue
 │           ├── layouts/
-│           │   ├── DetailedLayout.vue
-│           │   ├── FullscreenLayout.vue
+│           │   ├── RpiFactsCarouselLayout.vue
 │           │   ├── AmbientLayout.vue
 │           │   ├── CoverLayout.vue
-│           │   └── RpiFactsCarouselLayout.vue
+│           │   └── FullscreenLayout.vue
 │           └── composables/
 │               ├── useWebSocket.ts
 │               ├── usePreferences.ts
