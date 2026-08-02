@@ -538,15 +538,10 @@ test.describe('Screenshot Capture for PR Validation', () => {
 test.describe('Matrix', () => {
   const ALL_LAYOUTS = [
     'detailed',
-    'minimal',
     'fullscreen',
     'ambient',
     'cover',
-    'facts-columns',
-    'facts-overlay',
-    'facts-carousel',
     'rpi-facts-carousel',
-    'basic',
   ];
 
   // Selective runs: set MATRIX_LAYOUTS=detailed,basic to render only those layouts

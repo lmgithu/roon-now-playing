@@ -31,15 +31,10 @@ export interface NowPlaying {
 // Layout options
 export const LAYOUTS = [
   'detailed',
-  'minimal',
   'fullscreen',
   'ambient',
   'cover',
-  'facts-columns',
-  'facts-overlay',
-  'facts-carousel',
   'rpi-facts-carousel',
-  'basic',
 ] as const;
 export type LayoutType = (typeof LAYOUTS)[number];
 /** Default for new screens / invalid stored values */

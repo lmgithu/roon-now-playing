@@ -1718,7 +1718,7 @@ onMounted(async () => {
         <div class="config-card">
           <h2 class="card-title">Artwork Scale</h2>
           <p class="card-desc">Adjust the global artwork size. Individual screens can override this setting.</p>
-          <p class="card-hint">Applies to: Detailed, Ambient, Basic, Cover, and Facts Columns layouts. Layouts that use artwork as a full-screen background (Fullscreen, Minimal, Facts Overlay, Facts Carousel) are not affected.</p>
+          <p class="card-hint">Applies to: Detailed, Ambient, and Cover layouts. Fullscreen (full-bleed art) and RPi Facts Carousel use their own artwork sizing.</p>
 
           <div class="slider-field">
             <div class="slider-header">

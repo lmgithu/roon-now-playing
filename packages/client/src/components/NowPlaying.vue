@@ -2,16 +2,11 @@
 import { computed } from 'vue';
 import type { Zone, NowPlaying as NowPlayingType, LayoutType, BackgroundType } from '@roon-screen-cover/shared';
 import { useNowPlaying } from '../composables/useNowPlaying';
-import MinimalLayout from '../layouts/MinimalLayout.vue';
 import DetailedLayout from '../layouts/DetailedLayout.vue';
 import FullscreenLayout from '../layouts/FullscreenLayout.vue';
 import AmbientLayout from '../layouts/AmbientLayout.vue';
 import CoverLayout from '../layouts/CoverLayout.vue';
-import FactsColumnsLayout from '../layouts/FactsColumnsLayout.vue';
-import FactsOverlayLayout from '../layouts/FactsOverlayLayout.vue';
-import FactsCarouselLayout from '../layouts/FactsCarouselLayout.vue';
 import RpiFactsCarouselLayout from '../layouts/RpiFactsCarouselLayout.vue';
-import BasicLayout from '../layouts/BasicLayout.vue';
 
 const props = defineProps<{
   nowPlaying: NowPlayingType | null;
@@ -37,24 +32,15 @@ const {
 
 const layoutComponent = computed(() => {
   switch (props.layout) {
-    case 'minimal':
-      return MinimalLayout;
     case 'fullscreen':
       return FullscreenLayout;
     case 'ambient':
       return AmbientLayout;
     case 'cover':
       return CoverLayout;
-    case 'facts-columns':
-      return FactsColumnsLayout;
-    case 'facts-overlay':
-      return FactsOverlayLayout;
-    case 'facts-carousel':
-      return FactsCarouselLayout;
     case 'rpi-facts-carousel':
       return RpiFactsCarouselLayout;
-    case 'basic':
-      return BasicLayout;
+    case 'detailed':
     default:
       return DetailedLayout;
   }

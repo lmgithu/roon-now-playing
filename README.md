@@ -94,19 +94,12 @@ Example: `http://localhost:3000/?zone=Office&layout=detailed&background=gradient
 | Layout | Description |
 |--------|-------------|
 | `detailed` | Album artwork alongside title, artist, album, and progress bar. Responsive two-column layout on wider screens. |
-| `minimal` | Full-bleed artwork covering the entire screen with title/artist overlay at the bottom. Background setting is ignored. |
 | `fullscreen` | Album artwork centered on screen, scaled to fit. No text overlays. |
 | `ambient` | Color-extracted background with artwork and full track info. Great for 10-foot UI / TV displays. |
 | `cover` | Clean album cover centered with subtle shadow. Artwork crossfades on track changes. |
-| `facts-columns` | Two-column layout with artwork and AI-generated facts about the music. |
-| `facts-overlay` | Full artwork background with facts overlaid at the bottom. |
-| `facts-carousel` | Blurred artwork background with the rotating fact shown as large type, plus a compact now-playing chip. Sized for legibility on TVs. |
-| `rpi-facts-carousel` | Pi 3 / weak-GPU variant: solid tinted background (no CSS blur), sharp cover art beside the progress strip, facts + time remaining. |
-| `basic` | Legacy-compatible layout for older browsers (iOS 12+). Artwork with title, artist, album, and progress bar. Auto-adapts to portrait/landscape. |
+| `rpi-facts-carousel` | Pi 3 / weak-GPU facts view: solid album-tinted background (no CSS blur), sharp cover art beside the progress strip, rotating AI facts + time remaining. **Default.** |
 
-**Note:** Facts layouts require an LLM provider configured in the Admin panel. Supported providers: Anthropic, OpenAI, OpenRouter, or Local LLM (Ollama/LM Studio).
-
-**Note:** The `basic` layout is designed for older browsers like iOS 12 Safari. It avoids modern CSS features (gap, aspect-ratio, backdrop-filter) for maximum compatibility on legacy devices used as dedicated displays.
+**Note:** RPi Facts Carousel requires an LLM provider configured in the Admin panel. Supported providers: Anthropic, OpenAI, OpenRouter, or Local LLM (Ollama/LM Studio).
 
 ### Screenshots
 
@@ -535,17 +528,14 @@ roon-now-playing/
 │           │   └── ProgressBar.vue
 │           ├── layouts/
 │           │   ├── DetailedLayout.vue
-│           │   ├── MinimalLayout.vue
 │           │   ├── FullscreenLayout.vue
 │           │   ├── AmbientLayout.vue
 │           │   ├── CoverLayout.vue
-│           │   ├── FactsColumnsLayout.vue
-│           │   ├── FactsOverlayLayout.vue
-│           │   ├── FactsCarouselLayout.vue
-│           │   └── BasicLayout.vue
+│           │   └── RpiFactsCarouselLayout.vue
 │           └── composables/
 │               ├── useWebSocket.ts
 │               ├── usePreferences.ts
+│               ├── useAlbumTheme.ts
 │               ├── useColorExtraction.ts
 │               ├── useBackgroundStyle.ts
 │               ├── useFacts.ts

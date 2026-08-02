@@ -58,12 +58,12 @@ describe('usePreferences', () => {
   });
 
   it('should load layout from URL param', () => {
-    window.history.replaceState({}, '', '/?layout=minimal');
+    window.history.replaceState({}, '', '/?layout=ambient');
 
     const { layout, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(layout.value).toBe('minimal');
+    expect(layout.value).toBe('ambient');
   });
 
   it('should fall back to localStorage when no URL params', () => {
@@ -89,10 +89,10 @@ describe('usePreferences', () => {
   it('should save layout preference to localStorage', () => {
     const { saveLayoutPreference, layout } = usePreferences();
 
-    saveLayoutPreference('minimal');
+    saveLayoutPreference('cover');
 
-    expect(layout.value).toBe('minimal');
-    expect(localStorage.getItem('roon-screen-cover:layout')).toBe('minimal');
+    expect(layout.value).toBe('cover');
+    expect(localStorage.getItem('roon-screen-cover:layout')).toBe('cover');
   });
 
   it('should clear zone preference', () => {
@@ -120,12 +120,12 @@ describe('usePreferences', () => {
 
   it('should prioritize URL params over localStorage', () => {
     localStorage.setItem('roon-screen-cover:layout', 'fullscreen');
-    window.history.replaceState({}, '', '/?layout=minimal');
+    window.history.replaceState({}, '', '/?layout=ambient');
 
     const { layout, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(layout.value).toBe('minimal');
+    expect(layout.value).toBe('ambient');
   });
 
   // New background type tests
