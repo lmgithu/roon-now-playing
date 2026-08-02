@@ -45,11 +45,14 @@ const passwordMessage = ref<string | null>(null);
 const passwordError = ref<string | null>(null);
 
 async function submitLogin(): Promise<void> {
+  if (loginSubmitting.value || !loginPassword.value) return;
   loginSubmitting.value = true;
+  const secret = loginPassword.value;
   try {
-    const ok = await login(loginPassword.value);
+    const ok = await login(secret);
+    // Always clear the field after attempt so Safari never offers “Save Password”
+    loginPassword.value = '';
     if (ok) {
-      loginPassword.value = '';
       reconnectWs();
       await loadAdminData();
     }
@@ -744,14 +747,17 @@ onMounted(async () => {
 
   <!-- Login gate -->
   <div v-else-if="authRequired && !authenticated" class="admin-auth-gate">
-    <form
+    <!--
+      Not a <form> and not type=password: Safari/iOS ignore autocomplete=off on
+      password fields and still offer Keychain + “Save Password”. Masked text input
+      keeps the UX without triggering password managers.
+    -->
+    <div
       class="auth-card"
-      autocomplete="off"
       data-lpignore="true"
       data-1p-ignore="true"
       data-bwignore="true"
       data-form-type="other"
-      @submit.prevent="submitLogin"
     >
       <div class="auth-logo">
         <svg viewBox="0 0 24 24" fill="currentColor" class="logo-icon">
@@ -759,18 +765,15 @@ onMounted(async () => {
         </svg>
         <h1>Admin</h1>
       </div>
-      <p class="auth-desc">Enter the admin password to continue. The now-playing display stays open without a password.</p>
-      <label class="auth-label" for="admin-login-password">Password</label>
-      <!--
-        Intentionally not a browser “login password” field:
-        autocomplete off + non-login name suppress iOS Keychain / Safari Save Password.
-      -->
+      <p class="auth-desc">Enter the admin access code to continue. The now-playing display stays open without a password.</p>
+      <label class="auth-label" for="admin-login-access">Access code</label>
       <input
-        id="admin-login-password"
+        id="admin-login-access"
         v-model="loginPassword"
-        type="password"
-        name="roon-admin-gate"
-        class="auth-input"
+        type="text"
+        inputmode="text"
+        name="roon_access_code"
+        class="auth-input auth-input--secret"
         autocomplete="off"
         autocapitalize="off"
         autocorrect="off"
@@ -779,15 +782,23 @@ onMounted(async () => {
         data-1p-ignore="true"
         data-bwignore="true"
         data-form-type="other"
+        readonly
         autofocus
         :disabled="loginSubmitting"
+        @focus="($event.target as HTMLInputElement).removeAttribute('readonly')"
+        @keydown.enter.prevent="submitLogin"
       />
       <p v-if="authError" class="auth-error">{{ authError }}</p>
-      <button type="submit" class="btn-primary auth-submit" :disabled="loginSubmitting || !loginPassword">
+      <button
+        type="button"
+        class="btn-primary auth-submit"
+        :disabled="loginSubmitting || !loginPassword"
+        @click="submitLogin"
+      >
         {{ loginSubmitting ? 'Signing in…' : 'Sign in' }}
       </button>
       <a href="/" class="auth-back">← Now Playing</a>
-    </form>
+    </div>
   </div>
 
   <div v-else class="admin-shell">
@@ -1777,12 +1788,13 @@ onMounted(async () => {
           <p v-else class="card-hint">Password protection is <strong>off</strong>.</p>
 
           <div v-if="authRequired" class="form-field">
-            <label for="current-admin-password">Current password</label>
+            <label for="current-admin-password">Current access code</label>
             <input
               id="current-admin-password"
               v-model="currentAdminPassword"
-              type="password"
-              name="roon-admin-current"
+              type="text"
+              name="roon_access_current"
+              class="auth-input--secret"
               autocomplete="off"
               autocapitalize="off"
               autocorrect="off"
@@ -1796,12 +1808,13 @@ onMounted(async () => {
           </div>
 
           <div class="form-field">
-            <label for="new-admin-password">{{ authRequired ? 'New password' : 'Password' }}</label>
+            <label for="new-admin-password">{{ authRequired ? 'New access code' : 'Access code' }}</label>
             <input
               id="new-admin-password"
               v-model="newAdminPassword"
-              type="password"
-              name="roon-admin-new"
+              type="text"
+              name="roon_access_new"
+              class="auth-input--secret"
               autocomplete="off"
               autocapitalize="off"
               autocorrect="off"
@@ -1815,12 +1828,13 @@ onMounted(async () => {
           </div>
 
           <div class="form-field">
-            <label for="confirm-admin-password">Confirm password</label>
+            <label for="confirm-admin-password">Confirm access code</label>
             <input
               id="confirm-admin-password"
               v-model="confirmAdminPassword"
-              type="password"
-              name="roon-admin-confirm"
+              type="text"
+              name="roon_access_confirm"
+              class="auth-input--secret"
               autocomplete="off"
               autocapitalize="off"
               autocorrect="off"
@@ -1829,7 +1843,7 @@ onMounted(async () => {
               data-1p-ignore="true"
               data-bwignore="true"
               data-form-type="other"
-              placeholder="Repeat password"
+              placeholder="Repeat access code"
             />
           </div>
 
@@ -3489,6 +3503,13 @@ onMounted(async () => {
   background: #111113;
   color: #fafafa;
   font-size: 15px;
+}
+
+/* Masked text — not type=password, so Safari/iOS won’t treat as login credentials */
+.auth-input--secret,
+input.auth-input--secret {
+  -webkit-text-security: disc;
+  text-security: disc;
 }
 
 .auth-input:focus {

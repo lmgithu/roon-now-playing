@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.25] - 2026-08-02
+
+### Fixed
+
+- **Admin access gate:** Safari/iOS still treated the field as a password despite `autocomplete=off`. Gate no longer uses `<form>` or `type="password"`; masked `type="text"` (`-webkit-text-security: disc`) so Keychain autofill and “Save Password” stay off.
+
 ## [2.0.24] - 2026-08-02
 
 ### Changed
