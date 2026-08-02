@@ -78,7 +78,7 @@ pnpm dev
 | Parameter | Values | Description |
 |-----------|--------|-------------|
 | `zone` | Zone name or ID | Auto-select zone (e.g., `?zone=Living%20Room`) |
-| `layout` | `rpi-facts-carousel` (only layout in this fork) | Display layout |
+| `layout` | See [Layouts](#layouts) (default: `rpi-facts-carousel`) | Display layout |
 | `background` | See [Backgrounds](#backgrounds) section | Background style |
 | `font` | See [Fonts](#fonts) section | Font family |
 

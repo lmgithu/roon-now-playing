@@ -41,9 +41,9 @@ const isConnected = computed(() => screen.value !== null);
 // Available zones from websocket state
 const zones = computed<Zone[]>(() => wsState.value.zones);
 
-function getLayoutDisplayName(_layout: LayoutType): string {
-  // Single layout in this fork
-  return 'RPi Facts Carousel';
+function getLayoutDisplayName(layout: LayoutType): string {
+  if (layout === 'rpi-facts-carousel') return 'RPi Facts Carousel';
+  return layout.charAt(0).toUpperCase() + layout.slice(1).replace(/-/g, ' ');
 }
 
 function getFontDisplayName(font: FontType): string {

@@ -29,7 +29,7 @@ export class ClientSettingsStore {
       if (fs.existsSync(this.filePath)) {
         const data = fs.readFileSync(this.filePath, 'utf-8');
         const parsed = JSON.parse(data) as Record<string, ClientSettings>;
-        // Migrate removed layouts (this fork only ships rpi-facts-carousel)
+        // Migrate unknown/removed layout names to default
         for (const settings of Object.values(parsed)) {
           if (!settings?.layout || !(LAYOUTS as readonly string[]).includes(settings.layout)) {
             settings.layout = DEFAULT_LAYOUT;

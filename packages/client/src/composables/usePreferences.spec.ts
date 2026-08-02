@@ -22,8 +22,23 @@ import { usePreferences } from './usePreferences';
 
 describe('usePreferences', () => {
   beforeEach(() => {
-    // Clear localStorage before each test
-    localStorage.clear();
+    // jsdom sometimes omits a working localStorage; use an in-memory stub
+    const store = new Map<string, string>();
+    const mockStorage: Storage = {
+      get length() {
+        return store.size;
+      },
+      clear: () => store.clear(),
+      getItem: (key: string) => store.get(key) ?? null,
+      key: (index: number) => Array.from(store.keys())[index] ?? null,
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+    };
+    vi.stubGlobal('localStorage', mockStorage);
     // Reset URL
     window.history.replaceState({}, '', '/');
   });
@@ -43,23 +58,23 @@ describe('usePreferences', () => {
   });
 
   it('should load layout from URL param', () => {
-    window.history.replaceState({}, '', '/?layout=rpi-facts-carousel');
+    window.history.replaceState({}, '', '/?layout=minimal');
 
     const { layout, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(layout.value).toBe('rpi-facts-carousel');
+    expect(layout.value).toBe('minimal');
   });
 
   it('should fall back to localStorage when no URL params', () => {
     localStorage.setItem('roon-screen-cover:zone', 'Office');
-    localStorage.setItem('roon-screen-cover:layout', 'rpi-facts-carousel');
+    localStorage.setItem('roon-screen-cover:layout', 'fullscreen');
 
     const { preferredZone, layout, loadPreferences } = usePreferences();
     loadPreferences();
 
     expect(preferredZone.value).toBe('Office');
-    expect(layout.value).toBe('rpi-facts-carousel');
+    expect(layout.value).toBe('fullscreen');
   });
 
   it('should save zone preference to localStorage', () => {
@@ -74,10 +89,10 @@ describe('usePreferences', () => {
   it('should save layout preference to localStorage', () => {
     const { saveLayoutPreference, layout } = usePreferences();
 
-    saveLayoutPreference('rpi-facts-carousel');
+    saveLayoutPreference('minimal');
 
-    expect(layout.value).toBe('rpi-facts-carousel');
-    expect(localStorage.getItem('roon-screen-cover:layout')).toBe('rpi-facts-carousel');
+    expect(layout.value).toBe('minimal');
+    expect(localStorage.getItem('roon-screen-cover:layout')).toBe('minimal');
   });
 
   it('should clear zone preference', () => {
@@ -104,13 +119,13 @@ describe('usePreferences', () => {
   });
 
   it('should prioritize URL params over localStorage', () => {
-    localStorage.setItem('roon-screen-cover:layout', 'rpi-facts-carousel');
-    window.history.replaceState({}, '', '/?layout=rpi-facts-carousel');
+    localStorage.setItem('roon-screen-cover:layout', 'fullscreen');
+    window.history.replaceState({}, '', '/?layout=minimal');
 
     const { layout, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(layout.value).toBe('rpi-facts-carousel');
+    expect(layout.value).toBe('minimal');
   });
 
   // New background type tests

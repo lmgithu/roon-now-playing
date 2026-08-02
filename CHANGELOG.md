@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.15] - 2026-08-02
+
+### Added
+
+- **Restored multi-layout set:** detailed, minimal, fullscreen, ambient, cover, facts-columns, facts-overlay, facts-carousel, basic (alongside rpi-facts-carousel). Default remains `rpi-facts-carousel`.
+- **Shared album theme** (`useAlbumTheme`): Color Thief single-hue chrome (title/artist/meta/facts, progress track/fill, dots) applied across layouts.
+- **Progress bar polish** on shared `ProgressBar` and layout strips: `scaleX` fill, soft sheen, paused breath pulse (same as RPi Facts Carousel).
+- **Status strip meta** (source/quality when available) on Facts Carousel, matching RPi.
+
+### Changed
+
+- Admin / screen config layout pickers list all layouts again with readable display names.
+
 ## [2.0.14] - 2026-08-01
 
 ### Added
