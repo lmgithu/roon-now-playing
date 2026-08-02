@@ -317,8 +317,8 @@ onUnmounted(() => {
 }
 
 .dot {
-  width: clamp(8px, 0.9cqi, 18px);
-  height: clamp(8px, 0.9cqi, 18px);
+  width: clamp(6px, 0.7cqi, 16px);
+  height: clamp(6px, 0.7cqi, 16px);
   border-radius: 50%;
   background: var(--rpi-dot, rgba(245, 245, 245, 0.35));
   transition: background-color 0.32s ease-in-out;

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.20] - 2026-08-02
+
+### Changed
+
+- **RPi Facts Carousel:** fact indicator dots ~2px smaller.
+
 ## [2.0.19] - 2026-08-02
 
 ### Changed
