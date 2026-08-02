@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
- * RPi Facts Carousel — Facts-carousel hierarchy, Pi 3–safe rendering.
+ * RPi Facts Carousel — Facts-carousel hierarchy, Pi 3–safe / 10-foot TV rendering.
  *
  * Color system via useAlbumTheme (Color Thief → single album hue, staged by role).
+ * Typography is TV-first: dock chrome scales with viewport; fact size is length-aware
+ * so long AI quotes still fit while short ones stay grand.
  */
 import { computed, ref, watch, onUnmounted } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
@@ -44,6 +46,18 @@ const displayFact = ref<string | null>(null);
 /** 0 = hidden, 1 = fully visible */
 const factOpacity = ref(1);
 const factPhase = ref<'idle' | 'out' | 'in'>('idle');
+
+/**
+ * Length bands for fact type scale (Hungarian AI facts often 300–500 chars).
+ * Short quotes stay large; long ones step down so they remain fully on-screen.
+ */
+const factDensity = computed(() => {
+  const n = (displayFact.value ?? '').trim().length;
+  if (n >= 420) return 'xlong';
+  if (n >= 280) return 'long';
+  if (n >= 150) return 'mid';
+  return 'short';
+});
 
 let factFadeTimer: ReturnType<typeof setTimeout> | null = null;
 let factToken = 0;
@@ -175,6 +189,7 @@ onUnmounted(() => {
             <p
               v-else-if="displayFact"
               class="fact-text"
+              :class="`fact-${factDensity}`"
               :style="{ opacity: factOpacity }"
             >{{ displayFact }}</p>
             <p v-else-if="error && error.type === 'no-key'" class="error-hint">
@@ -236,8 +251,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/*
+ * TV / 10-foot first:
+ * - container-type: size → cqi (width) + cqb (height) for balanced type
+ * - fact size length-banded so long AI quotes fit; short ones stay grand
+ * - dock (cover + strip) scales up on large viewports so chrome matches the room
+ */
 .rpi-facts-carousel-layout {
-  container-type: inline-size;
+  container-type: size;
   container-name: layout;
 
   position: relative;
@@ -259,48 +280,82 @@ onUnmounted(() => {
 .safe-zone {
   width: 100%;
   height: 100%;
-  padding: 5% 6%;
+  /* Slightly tighter vertical padding — less “void” under the fact on TVs */
+  padding: clamp(2.5%, 3.5cqb, 4.5%) clamp(4%, 5cqi, 6%);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  gap: clamp(0.75rem, 2.2cqb, 1.75rem);
 }
 
 .facts-area {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
-  padding-bottom: 2%;
+  gap: clamp(0.65rem, 1.6cqb, 1.35rem);
+  overflow: hidden;
 }
 
 .fact-text {
-  font-size: calc(var(--fluid-fact) * var(--font-scale, 1));
+  /*
+   * Base = mid-length facts. Density modifiers override.
+   * min(cqi, cqb) keeps long multi-line quotes inside the facts column on 16:9 TVs.
+   */
+  --rpi-fact-size: clamp(1.35rem, min(3.15cqi, 5.6cqb), 4.65rem);
+  font-size: calc(var(--rpi-fact-size) * var(--font-scale, 1));
   font-weight: var(--font-semibold);
-  line-height: var(--leading-snug);
+  line-height: 1.34;
   margin: 0;
   /*
-   * Stable quote column (not content shrink-wrap).
-   * ~68% of the layout container — slightly narrower than the ~88% status
-   * strip so hierarchy stays clear, but wide enough for TV / wall viewing.
-   * 34em soft-caps measure on ultrawide; 100% never overflows the safe zone.
-   * text-align:center keeps short lines optically centered in the column.
+   * Wider column on large screens so long Hungarian facts use fewer lines
+   * (still soft-capped so short quotes don’t stretch edge-to-edge).
    */
-  width: min(68cqi, 34em);
+  width: min(74cqi, 42em);
   max-width: 100%;
+  max-height: 100%;
   box-sizing: border-box;
   color: var(--rpi-fact, #f5f5f5);
+  overflow: hidden;
+  overflow-wrap: break-word;
   /* Sequential fade only — single layer, never two facts overlapping */
   transition: opacity 0.32s ease-in-out;
   will-change: opacity;
   backface-visibility: hidden;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+/* Short quotes: allow a bolder hero size without overrunning the dock */
+.fact-text.fact-short {
+  --rpi-fact-size: clamp(1.5rem, min(3.55cqi, 6.4cqb), 5.35rem);
+  line-height: 1.3;
+  width: min(70cqi, 36em);
+}
+
+.fact-text.fact-mid {
+  --rpi-fact-size: clamp(1.4rem, min(3.25cqi, 5.9cqb), 4.9rem);
+}
+
+.fact-text.fact-long {
+  --rpi-fact-size: clamp(1.25rem, min(2.85cqi, 5cqb), 4.15rem);
+  line-height: 1.36;
+  width: min(76cqi, 44em);
+}
+
+/* Very long AI facts (400+ chars): prioritize full on-screen fit */
+.fact-text.fact-xlong {
+  --rpi-fact-size: clamp(1.15rem, min(2.45cqi, 4.35cqb), 3.55rem);
+  line-height: 1.38;
+  width: min(78cqi, 46em);
 }
 
 .loading-hint,
 .error-hint {
-  font-size: calc(var(--fluid-caption) * var(--font-scale, 1));
+  font-size: calc(clamp(0.85rem, 1.15cqi, 1.75rem) * var(--font-scale, 1));
   color: var(--rpi-fact-muted, rgba(245, 245, 245, 0.72));
   margin: 0;
 }
@@ -312,13 +367,14 @@ onUnmounted(() => {
 .fact-dots {
   display: flex;
   justify-content: center;
-  gap: clamp(10px, 1cqi, 22px);
-  margin-top: clamp(1.25rem, 2.5cqi, 3rem);
+  gap: clamp(10px, 1cqi, 20px);
+  flex-shrink: 0;
+  margin: 0;
 }
 
 .dot {
-  width: clamp(6px, 0.7cqi, 16px);
-  height: clamp(6px, 0.7cqi, 16px);
+  width: clamp(7px, 0.65cqi, 14px);
+  height: clamp(7px, 0.65cqi, 14px);
   border-radius: 50%;
   background: var(--rpi-dot, rgba(245, 245, 245, 0.35));
   transition: background-color 0.32s ease-in-out;
@@ -333,35 +389,40 @@ onUnmounted(() => {
 }
 
 .no-playback-text {
-  font-size: calc(var(--fluid-hero) * var(--font-scale, 1) * 0.55);
+  font-size: calc(clamp(1.75rem, min(4cqi, 7cqb), 4.5rem) * var(--font-scale, 1));
   font-weight: var(--font-semibold);
   margin: 0;
   color: var(--rpi-fact, #f5f5f5);
 }
 
 .zone-hint {
-  font-size: calc(var(--fluid-caption) * var(--font-scale, 1));
+  font-size: calc(clamp(0.85rem, 1.15cqi, 1.75rem) * var(--font-scale, 1));
   margin: 0.6em 0 0 0;
   color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
+/* —— Status strip: scales with room size so it stays couch-readable —— */
 .now-playing-row {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  gap: clamp(0.85rem, 2cqi, 1.75rem);
-  flex-shrink: 0;
+  gap: clamp(0.9rem, 1.8cqi, 2rem);
+  flex: 0 0 auto;
   max-width: 100%;
+  /* ~11–14% of viewport height budget for dock on large screens */
+  min-height: clamp(5.5rem, 12cqb, 11rem);
 }
 
 .cover-wrap {
   flex: 0 0 auto;
-  width: clamp(72px, 12cqi, 160px);
-  height: clamp(72px, 12cqi, 160px);
-  border-radius: clamp(2px, 0.22cqi, 5px);
+  /* Was hard-capped at 160px — too small on C1/4K; grow with container */
+  width: clamp(80px, 10.5cqi, 248px);
+  height: clamp(80px, 10.5cqi, 248px);
+  align-self: center;
+  border-radius: clamp(2px, 0.22cqi, 6px);
   overflow: hidden;
-  /* Same family as Cover layout dark-mode shadow (0 20px 50px / 0.45), scaled for thumbnail */
-  box-shadow: 0 clamp(6px, 1.1cqi, 10px) clamp(16px, 2.8cqi, 28px) rgba(0, 0, 0, 0.45);
+  /* Cover-layout dark soft drop, scaled for thumbnail */
+  box-shadow: 0 clamp(6px, 1cqi, 14px) clamp(16px, 2.6cqi, 36px) rgba(0, 0, 0, 0.45);
 }
 
 .cover-art {
@@ -383,14 +444,15 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.55rem;
+  gap: clamp(0.4rem, 0.9cqb, 0.75rem);
 }
 
 .np-line {
   display: flex;
   align-items: baseline;
   gap: 0.4em;
-  font-size: calc(var(--fluid-subtitle) * var(--font-scale, 1));
+  /* Dedicated dock type — larger ceiling than generic --fluid-subtitle for TV */
+  font-size: calc(clamp(1.05rem, 1.75cqi, 2.65rem) * var(--font-scale, 1));
   white-space: nowrap;
   overflow: hidden;
 }
@@ -414,12 +476,11 @@ onUnmounted(() => {
 }
 
 .progress-line {
-  /* Slightly thinner than prior 5–9px for a finer status strip */
-  height: clamp(3px, 0.32cqi, 6px);
+  /* Visible from the sofa without looking chunky on laptops */
+  height: clamp(4px, 0.38cqi, 8px);
   background: var(--rpi-progress-track, rgba(245, 245, 245, 0.16));
   border-radius: 999px;
   overflow: hidden;
-  /* Isolate fill transforms so only this strip repaints */
   contain: layout style;
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.25);
 }
@@ -427,7 +488,6 @@ onUnmounted(() => {
 .progress-fill {
   height: 100%;
   width: 100%;
-  /* Soft sheen: darker at origin → very subtle lift at the leading edge */
   background-color: var(--rpi-progress-fill, #f2f2f2);
   background-image: linear-gradient(
     90deg,
@@ -437,23 +497,16 @@ onUnmounted(() => {
     rgba(255, 255, 255, 0.05) 100%
   );
   transform-origin: left center;
-  /* scaleX is GPU-friendly; linear transition bridges 100ms seek ticks */
   transform: scaleX(var(--rpi-progress, 0));
   transition: transform 0.12s linear;
   will-change: transform;
-  /* Avoid subpixel flicker on some Chromium builds */
   backface-visibility: hidden;
   border-radius: inherit;
   box-shadow: 0 0 6px color-mix(in srgb, var(--rpi-progress-fill, #f2f2f2) 12%, transparent);
 }
 
-/*
- * Paused “breath”: gentle opacity pulse so the strip still feels alive.
- * Slow (~3.6s), narrow range — readable, not a neon throb. Opacity-only = cheap on Pi.
- */
 .progress-line.is-paused .progress-fill {
   animation: rpi-progress-breath 3.6s ease-in-out infinite;
-  /* Keep transform animation for seek; breath only fades the fill */
   will-change: transform, opacity;
 }
 
@@ -479,7 +532,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  font-size: calc(var(--fluid-caption) * var(--font-scale, 1));
+  font-size: calc(clamp(0.85rem, 1.15cqi, 1.85rem) * var(--font-scale, 1));
   color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
@@ -519,7 +572,6 @@ onUnmounted(() => {
 
 .quality-label {
   font-variant-numeric: tabular-nums;
-  /* Slightly brighter so 192kHz / 24-bit is glanceable */
   color: var(--rpi-artist, rgba(245, 245, 245, 0.82));
 }
 
@@ -530,9 +582,51 @@ onUnmounted(() => {
   color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
+/* Large living-room panels (C1-class): tighten fact ceiling, boost dock */
+@container layout (min-width: 1600px) {
+  .fact-text.fact-short {
+    --rpi-fact-size: clamp(1.6rem, min(3.2cqi, 5.8cqb), 4.85rem);
+  }
+
+  .fact-text.fact-xlong {
+    --rpi-fact-size: clamp(1.2rem, min(2.2cqi, 3.9cqb), 3.25rem);
+  }
+
+  .cover-wrap {
+    width: clamp(120px, 9.5cqi, 260px);
+    height: clamp(120px, 9.5cqi, 260px);
+  }
+
+  .np-line {
+    font-size: calc(clamp(1.2rem, 1.55cqi, 2.75rem) * var(--font-scale, 1));
+  }
+
+  .np-meta {
+    font-size: calc(clamp(0.95rem, 1.05cqi, 1.9rem) * var(--font-scale, 1));
+  }
+}
+
+/* 4K / ultrawide wall: keep hierarchy, never let facts become a textbook page */
+@container layout (min-width: 2800px) {
+  .fact-text {
+    width: min(68cqi, 40em);
+  }
+
+  .fact-text.fact-long,
+  .fact-text.fact-xlong {
+    width: min(72cqi, 44em);
+  }
+
+  .cover-wrap {
+    width: clamp(160px, 8cqi, 280px);
+    height: clamp(160px, 8cqi, 280px);
+  }
+}
+
 @container layout (max-width: 700px) {
   .now-playing-row {
     gap: 0.75rem;
+    min-height: 0;
   }
 
   .cover-wrap {
@@ -540,8 +634,11 @@ onUnmounted(() => {
     height: clamp(64px, 18cqi, 110px);
   }
 
-  /* Narrow screens: use most of the safe column; still fixed-width frame */
-  .fact-text {
+  .fact-text,
+  .fact-text.fact-short,
+  .fact-text.fact-mid,
+  .fact-text.fact-long,
+  .fact-text.fact-xlong {
     width: min(90%, 28em);
     max-width: 100%;
   }

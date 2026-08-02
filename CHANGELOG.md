@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.21] - 2026-08-02
+
+### Changed
+
+- **RPi Facts Carousel (TV / 10-foot):** rebalanced for large OLED panels (e.g. LG C1).
+  - Length-aware fact type (short / mid / long / xlong) so long AI quotes fit fully; short ones stay grand.
+  - Fact size uses width + height (`cqi`/`cqb`) with lower ceilings so text doesn’t dominate the wall.
+  - Wider quote column for long Hungarian facts; dock cover + title/meta scale up on large viewports.
+  - Tighter vertical rhythm (less empty void under facts); progress bar readable from the sofa.
+
 ## [2.0.20] - 2026-08-02
 
 ### Changed
