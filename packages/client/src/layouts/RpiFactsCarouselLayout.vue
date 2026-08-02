@@ -49,13 +49,14 @@ const factPhase = ref<'idle' | 'out' | 'in'>('idle');
 
 /**
  * Length bands for fact type scale (Hungarian AI facts often 300–500 chars).
- * Short quotes stay large; long ones step down so they remain fully on-screen.
+ * Short quotes stay large; longer ones step down only mildly so they still
+ * fill the stage — thresholds are high so we don't shrink “normal long” text.
  */
 const factDensity = computed(() => {
   const n = (displayFact.value ?? '').trim().length;
-  if (n >= 420) return 'xlong';
-  if (n >= 280) return 'long';
-  if (n >= 150) return 'mid';
+  if (n >= 520) return 'xlong';
+  if (n >= 340) return 'long';
+  if (n >= 180) return 'mid';
   return 'short';
 });
 
@@ -303,9 +304,10 @@ onUnmounted(() => {
 .fact-text {
   /*
    * Base = mid-length facts. Density modifiers override.
-   * min(cqi, cqb) keeps long multi-line quotes inside the facts column on 16:9 TVs.
+   * min(cqi, cqb) keeps multi-line quotes inside the facts column on 16:9 TVs.
+   * Maxes sit near the short-hero range so long text can still look substantial.
    */
-  --rpi-fact-size: clamp(1.35rem, min(3.15cqi, 5.6cqb), 4.65rem);
+  --rpi-fact-size: clamp(1.4rem, min(3.3cqi, 5.9cqb), 4.95rem);
   font-size: calc(var(--rpi-fact-size) * var(--font-scale, 1));
   font-weight: var(--font-semibold);
   line-height: 1.34;
@@ -337,19 +339,21 @@ onUnmounted(() => {
 }
 
 .fact-text.fact-mid {
-  --rpi-fact-size: clamp(1.4rem, min(3.25cqi, 5.9cqb), 4.9rem);
+  /* Near short — only a mild step down */
+  --rpi-fact-size: clamp(1.45rem, min(3.4cqi, 6.1cqb), 5.15rem);
 }
 
 .fact-text.fact-long {
-  --rpi-fact-size: clamp(1.25rem, min(2.85cqi, 5cqb), 4.15rem);
-  line-height: 1.36;
+  /* Still fills the stage; only ~½ step below mid (was too conservative) */
+  --rpi-fact-size: clamp(1.35rem, min(3.2cqi, 5.7cqb), 4.85rem);
+  line-height: 1.35;
   width: min(76cqi, 44em);
 }
 
-/* Very long AI facts (400+ chars): prioritize full on-screen fit */
+/* Truly long AI facts (520+ chars): mild step only — still up near mid max */
 .fact-text.fact-xlong {
-  --rpi-fact-size: clamp(1.15rem, min(2.45cqi, 4.35cqb), 3.55rem);
-  line-height: 1.38;
+  --rpi-fact-size: clamp(1.3rem, min(3.05cqi, 5.35cqb), 4.55rem);
+  line-height: 1.36;
   width: min(78cqi, 46em);
 }
 
@@ -582,14 +586,19 @@ onUnmounted(() => {
   color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
-/* Large living-room panels (C1-class): tighten fact ceiling, boost dock */
+/* Large living-room panels (C1-class): boost dock; keep fact steps gentle */
 @container layout (min-width: 1600px) {
   .fact-text.fact-short {
-    --rpi-fact-size: clamp(1.6rem, min(3.2cqi, 5.8cqb), 4.85rem);
+    --rpi-fact-size: clamp(1.55rem, min(3.35cqi, 6cqb), 5.2rem);
+  }
+
+  .fact-text.fact-long {
+    --rpi-fact-size: clamp(1.4rem, min(3.15cqi, 5.6cqb), 4.9rem);
   }
 
   .fact-text.fact-xlong {
-    --rpi-fact-size: clamp(1.2rem, min(2.2cqi, 3.9cqb), 3.25rem);
+    /* No hard shrink on TV — stay close to long/mid */
+    --rpi-fact-size: clamp(1.35rem, min(3cqi, 5.25cqb), 4.65rem);
   }
 
   .cover-wrap {

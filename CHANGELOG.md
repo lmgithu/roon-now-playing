@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.22] - 2026-08-02
+
+### Changed
+
+- **RPi Facts Carousel:** long facts use larger type again (milder length bands; higher thresholds). Typical AI quotes stay mid/long instead of shrinking to xlong.
+
 ## [2.0.21] - 2026-08-02
 
 ### Changed
