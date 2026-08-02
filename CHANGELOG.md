@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.28] - 2026-08-02
+
+### Fixed
+
+- **Ambient:** progress bar, times, zone, and equalizer always use light chrome to match title/artist/album (no black flip on pale covers).
+
 ## [2.0.27] - 2026-08-02
 
 ### Changed

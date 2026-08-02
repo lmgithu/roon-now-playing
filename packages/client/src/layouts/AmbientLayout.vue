@@ -58,32 +58,39 @@ watch(
   { immediate: true }
 );
 
+/**
+ * Title/artist/album are always light (--rpi-title etc.). Match status chrome:
+ * progress, times, zone, equalizer — always light (no black flip on pale covers).
+ */
+const lightStatusChrome = {
+  '--progress-bar-height': '6px',
+  '--progress-time-size': 'clamp(14px, 1.5vw, 18px)',
+  '--progress-bar-bg': 'rgba(255, 255, 255, 0.18)',
+  '--progress-bar-fill': '#f5f5f5',
+  '--text-color': '#f5f5f5',
+  '--text-secondary': 'rgba(245, 245, 245, 0.82)',
+  '--text-tertiary': 'rgba(245, 245, 245, 0.7)',
+} as const;
+
 const ambientStyle = computed(() => {
-  // Progress fill matches surrounding text (no album-hue tint); sheen/breath stay on ProgressBar
-  const lightText = colors.value.text === '#1a1a1a';
-  const cssVariables = {
+  const baseVars = {
     '--bg-color': colors.value.background,
     '--bg-edge': colors.value.backgroundEdge,
     '--shadow-color': colors.value.shadow,
-    '--progress-bar-height': '6px',
-    '--progress-time-size': 'clamp(14px, 1.5vw, 18px)',
-    '--progress-bar-bg': lightText ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.18)',
-    '--progress-bar-fill': lightText ? '#1a1a1a' : '#f5f5f5',
+    ...lightStatusChrome,
   };
 
-  // Simple Gradient: RPi-style album single-hue radial
+  // Simple Gradient: RPi-style album single-hue radial; force light status chrome last
   if (props.background === 'gradient-simple') {
     return {
       ...albumChrome.value,
-      ...cssVariables,
-      // Keep text-matched progress, not album accent
-      '--progress-bar-bg': cssVariables['--progress-bar-bg'],
-      '--progress-bar-fill': cssVariables['--progress-bar-fill'],
+      ...baseVars,
+      ...lightStatusChrome,
     };
   }
 
   if (usesDynamicBackground.value) {
-    return { ...backgroundStyle.value, ...cssVariables };
+    return { ...backgroundStyle.value, ...baseVars, ...lightStatusChrome };
   }
 
   const baseStyle = { ...backgroundStyle.value };
@@ -94,7 +101,8 @@ const ambientStyle = computed(() => {
 
   return {
     ...baseStyle,
-    ...cssVariables,
+    ...baseVars,
+    ...lightStatusChrome,
   };
 });
 
@@ -447,7 +455,8 @@ const rootStyle = ambientStyle;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: var(--text-tertiary);
+  /* Always light — matches title/artist/album */
+  color: var(--text-tertiary, rgba(245, 245, 245, 0.7));
   font-size: calc(var(--text-sm) * var(--font-scale, 1));
 }
 
