@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
-import { LAYOUTS, type Zone, type LayoutType, type FontType, type BackgroundType } from '@roon-screen-cover/shared';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import {
+  LAYOUTS,
+  BACKGROUNDS,
+  type Zone,
+  type LayoutType,
+  type FontType,
+  type BackgroundType,
+} from '@roon-screen-cover/shared';
 import QRCode from 'qrcode';
 import { useWebSocket } from '../composables/useWebSocket';
 import { usePreferences } from '../composables/usePreferences';
@@ -157,6 +164,72 @@ function cycleLayout(): void {
   updateMetadata();
 }
 
+/** Cycle display backgrounds (ArrowDown). */
+function cycleBackground(direction: 1 | -1 = 1): void {
+  const list = [...BACKGROUNDS];
+  if (list.length === 0) return;
+  const currentIndex = list.indexOf(background.value);
+  const nextIndex =
+    currentIndex === -1 ? 0 : (currentIndex + direction + list.length) % list.length;
+  saveBackgroundPreference(list[nextIndex]!);
+  updateMetadata();
+}
+
+/** Cycle active zones (ArrowLeft / ArrowRight). */
+function cycleZone(direction: 1 | -1): void {
+  const zones = wsState.value.zones;
+  if (zones.length === 0) return;
+
+  // If picker is open or no zone, pick first/last by direction
+  if (!selectedZoneId.value) {
+    selectZone(direction === 1 ? zones[0]! : zones[zones.length - 1]!);
+    return;
+  }
+
+  const currentIndex = zones.findIndex((z) => z.id === selectedZoneId.value);
+  const nextIndex =
+    currentIndex === -1 ? 0 : (currentIndex + direction + zones.length) % zones.length;
+  selectZone(zones[nextIndex]!);
+}
+
+function handleDisplayKeydown(event: KeyboardEvent): void {
+  // Ignore when focus is in an editable field (shouldn't happen on display, but safe)
+  const t = event.target as HTMLElement | null;
+  if (
+    t &&
+    (t.tagName === 'INPUT' ||
+      t.tagName === 'TEXTAREA' ||
+      t.tagName === 'SELECT' ||
+      t.isContentEditable)
+  ) {
+    return;
+  }
+
+  // Only while the main display is active (not welcome/connecting)
+  if (connectionStatus.value !== 'connected') return;
+
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      cycleBackground(1);
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      cycleBackground(-1);
+      break;
+    case 'ArrowRight':
+      event.preventDefault();
+      cycleZone(1);
+      break;
+    case 'ArrowLeft':
+      event.preventDefault();
+      cycleZone(-1);
+      break;
+    default:
+      break;
+  }
+}
+
 // Watch for zones to become available and auto-select
 watch(
   () => wsState.value.zones,
@@ -205,9 +278,14 @@ watch(
   { immediate: true }
 );
 
-// Load preferences on mount
+// Load preferences on mount; keyboard controls for kiosk / TV remotes
 onMounted(() => {
   loadPreferences();
+  window.addEventListener('keydown', handleDisplayKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleDisplayKeydown);
 });
 </script>
 

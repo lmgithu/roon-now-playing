@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.29] - 2026-08-02
+
+### Added
+
+- **Display keyboard controls:** ArrowDown/Up cycles backgrounds; ArrowLeft/Right cycles zones; click still cycles layouts.
+
 ## [2.0.28] - 2026-08-02
 
 ### Fixed
