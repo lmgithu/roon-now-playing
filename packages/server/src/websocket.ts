@@ -22,6 +22,7 @@ import type {
   DisplaySettings,
   ServerClientResetMessage,
 } from '@roon-screen-cover/shared';
+import { DEFAULT_LAYOUT, DEFAULT_BACKGROUND } from '@roon-screen-cover/shared';
 import { RoonClient } from './roon.js';
 import { ExternalSourceManager } from './externalSources.js';
 import { generateFriendlyName } from './nameGenerator.js';
@@ -116,9 +117,9 @@ export class WebSocketManager {
         clientId: '', // Will be set when client sends metadata
         deviceId: '', // Will be set when client sends metadata
         friendlyName: null,
-        layout: 'rpi-facts-carousel',
+        layout: DEFAULT_LAYOUT,
         font: 'system',
-        background: 'black',
+        background: DEFAULT_BACKGROUND,
         subscribedZoneId: null,
         subscribedZoneName: null,
         connectedAt: Date.now(),

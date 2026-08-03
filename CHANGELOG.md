@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.30] - 2026-08-03
+
+### Fixed
+
+- **Defaults:** new/unset displays use RPi Facts Carousel + Simple Gradient (websocket and client metadata no longer fall back to black).
+
 ## [2.0.29] - 2026-08-02
 
 ### Added

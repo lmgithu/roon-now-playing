@@ -122,7 +122,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       clientId,
       layout: options.layout?.value || 'rpi-facts-carousel',
       font: options.font?.value || 'system',
-      background: options.background?.value || 'black',
+      // Match DEFAULT_BACKGROUND (Simple Gradient) — not black
+      background: options.background?.value || 'gradient-simple',
       zoneId: subscribedZoneId,
       zoneName: subscribedZoneName,
       userAgent: navigator.userAgent,
