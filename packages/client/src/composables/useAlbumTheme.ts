@@ -109,19 +109,20 @@ function makeFallbackAlbumTheme(seed: string = ''): AlbumTheme {
   if (a.matchText || isUnwantedBlueHue(a.h, a.s)) {
     accent = TEXT_ACCENT;
     accentSoft = 'rgba(242, 242, 242, 0.35)';
-    track = 'rgba(242, 242, 242, 0.18)';
+    // Status-bar track: readable on dark fields (was ~0.18 and blended away)
+    track = 'rgba(242, 242, 242, 0.38)';
     coverRing = 'rgba(242, 242, 242, 0.1)';
   } else {
     const muted = muteAccent(a.h, a.s, a.l);
     if (isUnwantedBlueHue(muted.h, muted.s)) {
       accent = TEXT_ACCENT;
       accentSoft = 'rgba(242, 242, 242, 0.35)';
-      track = 'rgba(242, 242, 242, 0.18)';
+      track = 'rgba(242, 242, 242, 0.38)';
       coverRing = 'rgba(242, 242, 242, 0.1)';
     } else {
       accent = hslToString(muted.h, muted.s, muted.l);
       accentSoft = hslToString(muted.h, muted.s, muted.l, 0.32);
-      track = hslToString(muted.h, clamp(muted.s, 4, 12), 22, 0.4);
+      track = hslToString(muted.h, clamp(muted.s, 4, 14), 34, 0.5);
       coverRing = hslToString(a.h, clamp(a.s, 5, 14), 18, 0.45);
     }
   }
@@ -332,7 +333,9 @@ function buildAlbumThemeFromThief(swatches: SwatchMap, palette: Color[]): AlbumT
   const sepColor = hslCss(meta.h, clamp(meta.s * 0.85, 0, 12), meta.l, 0.5);
 
   const progressFill = hslCss(barH, barS, barL);
-  const progressTrack = hslCss(barH, clamp(barS, 0, 16), clamp(bgL + 12, 16, 24), 0.32);
+  // Status-bar track: lighter + higher alpha so it separates from the page wash
+  // (previous ~L16–24 @ 0.32 alpha read as almost invisible on Simple Gradient).
+  const progressTrack = hslCss(barH, clamp(barS, 0, 18), clamp(bgL + 22, 30, 40), 0.5);
   // Idle dots: soft album-tinted (active remains bar) — leave accent balance as-is
   const dotIdle = chromatic
     ? hslCss(H, clamp(stripS * 0.6, 0, 12), 88, 0.3)

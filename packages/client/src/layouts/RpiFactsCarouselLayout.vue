@@ -588,8 +588,8 @@ onUnmounted(() => {
 .progress-line {
   /* Visible from the sofa without looking chunky on laptops */
   height: clamp(4px, 0.38cqi, 8px);
-  /* Homogeneous track — no dark inset line on colored album fields */
-  background: var(--rpi-progress-track, rgba(245, 245, 245, 0.22));
+  /* Homogeneous track — prominent enough to read on album-colored fields */
+  background: var(--rpi-progress-track, rgba(245, 245, 245, 0.4));
   border-radius: 999px;
   overflow: hidden;
   contain: layout style;

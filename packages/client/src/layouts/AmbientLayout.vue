@@ -65,7 +65,7 @@ watch(
 const lightStatusChrome = {
   '--progress-bar-height': '6px',
   '--progress-time-size': 'clamp(14px, 1.5vw, 18px)',
-  '--progress-bar-bg': 'rgba(255, 255, 255, 0.18)',
+  '--progress-bar-bg': 'rgba(255, 255, 255, 0.38)',
   '--progress-bar-fill': '#f5f5f5',
   '--text-color': '#f5f5f5',
   '--text-secondary': 'rgba(245, 245, 245, 0.82)',

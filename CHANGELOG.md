@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.32] - 2026-08-04
+
+### Changed
+
+- **Progress / status track:** inactive bar background is more opaque and slightly lighter so it stands out from album-colored page washes (RPi, Ambient, and shared ProgressBar).
+
 ## [2.0.31] - 2026-08-04
 
 ### Fixed

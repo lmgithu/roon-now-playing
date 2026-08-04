@@ -29,11 +29,11 @@ export function useBackgroundStyle(
   });
 
   const lightProgressBar = {
-    '--progress-bar-bg': 'rgba(255, 255, 255, 0.2)',
+    '--progress-bar-bg': 'rgba(255, 255, 255, 0.38)',
     '--progress-bar-fill': 'rgba(255, 255, 255, 0.9)',
   };
   const darkProgressBar = {
-    '--progress-bar-bg': 'rgba(26, 26, 26, 0.15)',
+    '--progress-bar-bg': 'rgba(26, 26, 26, 0.22)',
     '--progress-bar-fill': 'rgba(26, 26, 26, 0.7)',
   };
 

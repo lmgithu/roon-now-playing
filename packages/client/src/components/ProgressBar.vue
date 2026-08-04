@@ -53,8 +53,8 @@ const progressScale = computed(() => {
 
 .progress-bar {
   height: var(--progress-bar-height, 4px);
-  /* Flat track — no dark inset line on colored backgrounds */
-  background: var(--progress-bar-bg, var(--rpi-progress-track, rgba(255, 255, 255, 0.22)));
+  /* Flat track — no dark inset; opaque enough to stand out on colored bgs */
+  background: var(--progress-bar-bg, var(--rpi-progress-track, rgba(255, 255, 255, 0.4)));
   border-radius: 999px;
   overflow: hidden;
   contain: layout style;
