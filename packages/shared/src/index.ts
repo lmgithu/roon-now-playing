@@ -198,8 +198,12 @@ When possible, include attribution (e.g., "In a 1985 interview..." or "According
 
 Keep each fact concise (2-3 sentences max). Prioritize surprising or educational information over common knowledge.
 
+SPECIAL CASES:
+- If the artist is "Various Artists", "VA", "Various", or the credit is a compilation/hits collection: identify the original performing artist for Track when you can. If you cannot, return {factsCount} short honest statements (in the same language you use for facts) that this is a multi-artist compilation entry and the original performer/recording context could not be verified from the metadata alone. Do NOT invent studio lore.
+- Never include chain-of-thought, research notes, self-talk, prompt restatements, or the instructions above as facts. If unsure, say so briefly as a fact — never narrate your reasoning process.
+
 IMPORTANT: Return ONLY a valid JSON array of strings with no additional text, markdown, or explanation.
-Do not use curly/smart quotes. Escape any double quotes inside facts. Do not truncate the array.
+Do not use curly/smart quotes. Escape every double quote inside a fact as \\". Do not break a string mid-fact. Do not truncate the array.
 
 Example format:
 ["Fact one goes here.", "Fact two goes here.", "Fact three goes here."]`;

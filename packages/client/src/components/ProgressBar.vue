@@ -53,24 +53,24 @@ const progressScale = computed(() => {
 
 .progress-bar {
   height: var(--progress-bar-height, 4px);
-  background: var(--progress-bar-bg, var(--rpi-progress-track, rgba(255, 255, 255, 0.2)));
+  /* Flat track — no dark inset line on colored backgrounds */
+  background: var(--progress-bar-bg, var(--rpi-progress-track, rgba(255, 255, 255, 0.22)));
   border-radius: 999px;
   overflow: hidden;
   contain: layout style;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
 }
 
 .progress-fill {
   height: 100%;
   width: 100%;
   background-color: var(--progress-bar-fill, var(--rpi-progress-fill, rgba(255, 255, 255, 0.9)));
-  /* Soft sheen: darker at origin → subtle lift at the leading edge */
+  /* Soft sheen without a dark leading edge (avoids black strip on warm bgs) */
   background-image: linear-gradient(
     90deg,
-    rgba(0, 0, 0, 0.1) 0%,
-    rgba(255, 255, 255, 0) 45%,
-    rgba(255, 255, 255, 0.03) 75%,
-    rgba(255, 255, 255, 0.05) 100%
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.04) 55%,
+    rgba(255, 255, 255, 0.08) 100%
   );
   transform-origin: left center;
   transform: scaleX(var(--progress-scale, 0));

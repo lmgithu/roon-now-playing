@@ -588,11 +588,12 @@ onUnmounted(() => {
 .progress-line {
   /* Visible from the sofa without looking chunky on laptops */
   height: clamp(4px, 0.38cqi, 8px);
-  background: var(--rpi-progress-track, rgba(245, 245, 245, 0.16));
+  /* Homogeneous track — no dark inset line on colored album fields */
+  background: var(--rpi-progress-track, rgba(245, 245, 245, 0.22));
   border-radius: 999px;
   overflow: hidden;
   contain: layout style;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
 }
 
 .progress-fill {
@@ -601,10 +602,9 @@ onUnmounted(() => {
   background-color: var(--rpi-progress-fill, #f2f2f2);
   background-image: linear-gradient(
     90deg,
-    rgba(0, 0, 0, 0.1) 0%,
-    rgba(255, 255, 255, 0) 45%,
-    rgba(255, 255, 255, 0.03) 75%,
-    rgba(255, 255, 255, 0.05) 100%
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.04) 55%,
+    rgba(255, 255, 255, 0.08) 100%
   );
   transform-origin: left center;
   transform: scaleX(var(--rpi-progress, 0));

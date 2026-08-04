@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.31] - 2026-08-04
+
+### Fixed
+
+- **Facts JSON shatter:** unescaped mid-fact quotes (e.g. album title *Ecstasy in the Shadow of Ecstasy*) no longer split one fact across the next; rejoin + odd-quote scanner heuristics close/repair fragments.
+- **Facts reasoning leak:** chain-of-thought / prompt restatements (common on Various Artists / compilation metadata failures) are filtered out instead of shown as facts; default prompt tells the model to admit missing artist context instead of dumping planning notes.
+- **Progress track:** removed dark inset `box-shadow` and black-leading sheen on progress bars so the inactive track stays homogeneous on warm/colored backgrounds (RPi status bar and shared ProgressBar).
+
 ## [2.0.30] - 2026-08-03
 
 ### Fixed

@@ -50,6 +50,122 @@ function cleanFact(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
+function countUnescapedQuotes(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '"' && (i === 0 || s[i - 1] !== '\\')) n++;
+  }
+  return n;
+}
+
+/**
+ * Rejoin facts shattered by unescaped mid-string quotes followed by a comma
+ * (e.g. album title "Ecstasy in the Shadow of Ecstasy", next fragment starts with `, "…`).
+ *
+ * When the previous fact has an open quote and the next piece starts with junk
+ * (`, "` / `",`), close the quote on prev. If the remainder is a full new
+ * sentence, keep it as a separate fact instead of gluing into a mega-string.
+ */
+export function rejoinSplitFacts(facts: string[]): string[] {
+  if (facts.length <= 1) return facts;
+
+  const out: string[] = [];
+  for (const raw of facts) {
+    const f = cleanFact(raw);
+    if (!f) continue;
+    if (out.length === 0) {
+      out.push(f);
+      continue;
+    }
+
+    const prev = out[out.length - 1]!;
+    const prevEndsSentence = /[.!?…]["')\]]?\s*$/u.test(prev);
+    const prevOddQuotes = countUnescapedQuotes(prev) % 2 === 1;
+    const nextStartsWithJunk = /^[,;:]+/.test(f) || /^["']\s*[,.]/.test(f);
+    const nextIsOrphan =
+      nextStartsWithJunk ||
+      /^["']\s*[,.]?\s*["']?[A-ZÁÉÍÓÖŐÚÜŰa-záéíóöőúüű]/.test(f) ||
+      (/^["']/.test(f) && !prevEndsSentence && f.length < 100);
+
+    // Classic shatter: open title quote + next chunk is `, "Next full fact…`
+    if (prevOddQuotes && nextStartsWithJunk) {
+      const closed = prev.endsWith('"') ? prev : `${prev}"`;
+      const rest = f.replace(/^[,;:"'\s]+/, '').trim();
+      out[out.length - 1] = cleanFact(closed);
+      if (rest.length >= 40 && /[A-ZÁÉÍÓÖŐÚÜŰ]/.test(rest[0] ?? '')) {
+        out.push(rest);
+      } else if (rest.length > 0) {
+        out[out.length - 1] = cleanFact(`${closed} ${rest}`);
+      }
+      continue;
+    }
+
+    if (prevOddQuotes || (nextIsOrphan && !prevEndsSentence)) {
+      // Glue: drop leading junk from the orphan piece
+      let tail = f.replace(/^[,;:\s]+/, ' ').trimStart();
+      if (prevOddQuotes && !prev.endsWith('"')) {
+        // Close open quote, then continue with remaining text
+        if (tail.startsWith('"')) {
+          tail = tail.slice(1).replace(/^\s*/, ' ').trimStart();
+          out[out.length - 1] = cleanFact(`${prev}"${tail ? ` ${tail}` : ''}`);
+        } else {
+          out[out.length - 1] = cleanFact(`${prev}" ${tail}`);
+        }
+      } else {
+        const sep = prev.endsWith(' ') || tail.startsWith(' ') ? '' : ' ';
+        out[out.length - 1] = cleanFact(`${prev}${sep}${tail}`);
+      }
+      continue;
+    }
+
+    out.push(f);
+  }
+  return out;
+}
+
+/** Drop chain-of-thought / prompt echoes that models sometimes return as "facts". */
+export function looksLikeReasoningLeak(fact: string): boolean {
+  const f = fact.trim();
+  const lower = f.toLowerCase();
+  // Tiny debris only (do not treat short real facts like "Fact one." as leaks)
+  if (f.length < 4) return true;
+
+  const patterns: RegExp[] = [
+    /\bwe need to generate\b/i,
+    /\blet'?s (research|investigate|recall|check)\b/i,
+    /\bknown facts\s*:/i,
+    /\bi recall (that|from)\b/i,
+    /\bfrom memory\b/i,
+    /\bbetter\s*:/i,
+    /\bhmm\.?\s*$/i,
+    /\bfacts should be in\b/i,
+    /\bmust be concise\b/i,
+    /\bensure facts are\b/i,
+    /\bgenerate \d+\s+interesting\b/i,
+    /\breturn only a valid json\b/i,
+    /\blesser-known facts about\b/i,
+    /\bthe prompt\b/i,
+    /\bchain[- ]of[- ]thought\b/i,
+    /\bnot sure\.?\s*$/i,
+    /\blet'?s (see|think|figure)\b/i,
+    /\baccording to (my |the )?(knowledge|training)\b/i,
+    /\bi (don'?t|do not) have (enough |reliable )?info/i,
+    /\bas an ai\b/i,
+    /\bplaceholder\b/i,
+    /\btrack says various artists\b/i,
+    /\bbut track says\b/i,
+    /\bfocus on recording history\b/i,
+  ];
+  if (patterns.some((p) => p.test(lower))) return true;
+
+  // Meta planning that isn't a musical fact
+  if (/^(we |i |let'?s |ok[,.]|okay[,.]|first[,]|second[,]|third[,])/i.test(f) && /fact|research|generate|album|song/i.test(f) && f.length < 220) {
+    if (/\b(need to|should|must|will try|let me)\b/i.test(lower)) return true;
+  }
+
+  return false;
+}
+
 function tryParseJsonArray(raw: string): string[] | null {
   try {
     const parsed = JSON.parse(raw);
@@ -171,11 +287,41 @@ export function scanJsonStringArray(text: string): string[] {
         // A quote ends the element only when followed (after whitespace) by
         //   ,  ]  " (next element, missing comma)  or EOF.
         // Song titles sit mid-sentence: next char is a letter, not a delimiter.
+        // Special case: `"Title", "Next fact…` — comma then quote looks like
+        // JSON, but if the buffer has no sentence end and an odd quote count
+        // we may still be mid-fact (model forgot to escape). Prefer rejoin later;
+        // still end here when the following element looks like a new sentence.
         let j = i + 1;
         while (j < n && /\s/.test(text[j]!)) j++;
         const next = j < n ? text[j]! : '';
-        const endsElement =
+        let endsElement =
           next === '' || next === ',' || next === ']' || next === '"';
+
+        if (endsElement && next === ',') {
+          // Unbalanced quotes in buf → this " closes a mid-fact title, not the element.
+          // (e.g. az "Ecstasy in the Shadow of Ecstasy", "A szám…)
+          if (countUnescapedQuotes(buf) % 2 === 1) {
+            endsElement = false;
+          } else {
+            // Peek past comma: if next token is " + capital letter, treat as new element.
+            // If next is " + lowercase / punctuation fragment, keep quote as internal.
+            let k = j + 1;
+            while (k < n && /\s/.test(text[k]!)) k++;
+            if (k < n && text[k] === '"') {
+              let m = k + 1;
+              while (m < n && /\s/.test(text[m]!)) m++;
+              const first = m < n ? text[m]! : '';
+              const looksNewFact =
+                /[A-ZÁÉÍÓÖŐÚÜŰ]/.test(first) &&
+                (buf.length >= 40 || /[.!?…]["')\]]?\s*$/u.test(buf.trim()));
+              const looksOrphan =
+                first === ',' || first === '.' || /[a-záéíóöőúüű]/.test(first);
+              if (!looksNewFact && looksOrphan) {
+                endsElement = false;
+              }
+            }
+          }
+        }
 
         if (endsElement) {
           facts.push(cleanFact(buf));
@@ -254,12 +400,22 @@ function extractBracketLines(text: string): string[] {
 }
 
 function finalizeFacts(facts: string[], maxFacts?: number): string[] {
-  let out = facts.map(cleanFact).filter((f) => f.length > 0);
+  let out = rejoinSplitFacts(facts.map(cleanFact).filter((f) => f.length > 0));
+
+  // Drop prompt / chain-of-thought leaks
+  const cleaned = out.filter((f) => !looksLikeReasoningLeak(f));
+  if (cleaned.length > 0) {
+    out = cleaned;
+  } else if (out.length > 0) {
+    // Entire payload was reasoning — refuse to show it
+    logger.warn('[ParseFacts] All parsed items looked like reasoning leaks; dropping');
+    return [];
+  }
 
   // Only when over-count: drop short title-like fragments (the old bug mode),
   // then cap to maxFacts. Never strip short-but-valid facts when count is fine.
   if (maxFacts && out.length > maxFacts) {
-    const sentences = out.filter((f) => f.length >= 40 || /[.!?…]["']?$/.test(f));
+    const sentences = out.filter((f) => f.length >= 40 || /[.!?…]["']?$/u.test(f));
     if (sentences.length >= Math.min(maxFacts, 2)) {
       out = sentences;
     } else {
@@ -268,6 +424,17 @@ function finalizeFacts(facts: string[], maxFacts?: number): string[] {
     }
     out = out.slice(0, maxFacts);
   }
+
+  // Second rejoin pass after filtering (orphan pieces may remain)
+  out = rejoinSplitFacts(out);
+
+  // Close any remaining open mid-fact quotes (truncation / shatter residue)
+  out = out.map((f) => {
+    if (countUnescapedQuotes(f) % 2 === 1 && !f.endsWith('"')) {
+      return cleanFact(`${f}"`);
+    }
+    return f;
+  });
 
   return out;
 }

@@ -127,6 +127,8 @@ describe('ExternalSourceManager', () => {
           album: 'Test Album',
           duration_seconds: 180,
           artwork_key: null,
+          quality_label: null,
+          source_label: null,
         },
         seek_position: 45,
       });
