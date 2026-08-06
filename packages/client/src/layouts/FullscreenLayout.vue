@@ -23,7 +23,6 @@ const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: () => props.track,
   progress: () => props.progress,
-  includeBackground: true,
 });
 
 const backgroundRef = computed(() => props.background);
@@ -36,10 +35,11 @@ const usesDynamicBackground = computed(() =>
 );
 
 const rootStyle = computed(() => {
-  if (props.background === 'gradient-simple') {
-    return albumChrome.value;
+  if (usesDynamicBackground.value) {
+    return { ...albumChrome.value };
   }
   return {
+    ...albumChrome.value,
     ...(backgroundStyle.value || {}),
   };
 });

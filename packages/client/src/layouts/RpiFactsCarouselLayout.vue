@@ -2,9 +2,9 @@
 /**
  * RPi Facts Carousel — Facts-carousel hierarchy, Pi 3–safe / 10-foot TV rendering.
  *
- * Color system via useAlbumTheme (vivid-peak extraction → Apple-style ambient hue).
- * Typography is TV-first: dock chrome scales with viewport; fact size is length-aware
- * so long AI quotes still fit while short ones stay grand.
+ * Ambient field: blurred album art (Apple/Plexamp) via DynamicBackground + gradient-simple.
+ * Chrome (progress/dots/text): conservative mid-tone accents from useAlbumTheme.
+ * Typography is TV-first: dock chrome scales with viewport; fact size is length-aware.
  */
 import { computed, ref, watch, onUnmounted, type CSSProperties } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
@@ -31,12 +31,11 @@ const stateRef = computed(() => props.state);
 
 const { facts, currentFactIndex, currentFact, isLoading, error } = useFacts(trackRef, stateRef);
 
-// Album chrome always (facts/strip/progress tints). Field bg only for Simple Gradient.
+// Chrome only (progress/dots/text). Field = blurred art for gradient-simple.
 const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: trackRef,
   progress: () => props.progress,
-  includeBackground: true,
 });
 
 const backgroundRef = computed(() => props.background);
@@ -48,21 +47,14 @@ const usesDynamicBackground = computed(() =>
   (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
 );
 
-/** Simple Gradient = classic RPi album radial; other types from preference */
+/** Chrome vars + non-blur field styles when not using DynamicBackground */
 const layoutStyle = computed((): CSSProperties => {
-  if (props.background === 'gradient-simple') {
-    return albumChrome.value;
-  }
-  // Keep album-tinted fact/strip/progress; override only the field background
-  const { background: _albumBg, ...chrome } = albumChrome.value as CSSProperties & {
-    background?: string;
-  };
-  void _albumBg;
   if (usesDynamicBackground.value) {
-    return { ...chrome, ...backgroundStyle.value };
+    // Blur field lives in DynamicBackground; only chrome CSS vars here
+    return { ...albumChrome.value };
   }
   return {
-    ...chrome,
+    ...albumChrome.value,
     ...backgroundStyle.value,
   };
 });

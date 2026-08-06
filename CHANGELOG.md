@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.35] - 2026-08-06
+
+### Changed
+
+- **Apple/Plexamp ambient:** Simple Gradient (default) is now a **blurred album-art field** + dark scrim, not a synthetic solid HSL wash. The room always matches the cover.
+- **Safe chrome:** Progress/dots use pre-blurred mid-tone sampling only; near-black/near-white ignored; low-chroma art gets neutral grey chrome (no gold/red invention). Soft accents only when chroma is real.
+
 ## [2.0.34] - 2026-08-06
 
 ### Fixed

@@ -29,7 +29,6 @@ const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: () => props.track,
   progress: () => props.progress,
-  includeBackground: true,
 });
 
 const usesDynamicBackground = computed(() =>
@@ -80,17 +79,13 @@ const ambientStyle = computed(() => {
     ...lightStatusChrome,
   };
 
-  // Simple Gradient: RPi-style album single-hue radial; force light status chrome last
-  if (props.background === 'gradient-simple') {
+  // Blur ambient + DynamicBackground: light base, album chrome for progress tint
+  if (usesDynamicBackground.value) {
     return {
-      ...albumChrome.value,
       ...baseVars,
       ...lightStatusChrome,
+      ...albumChrome.value,
     };
-  }
-
-  if (usesDynamicBackground.value) {
-    return { ...backgroundStyle.value, ...baseVars, ...lightStatusChrome };
   }
 
   const baseStyle = { ...backgroundStyle.value };

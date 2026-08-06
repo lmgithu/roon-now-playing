@@ -8,8 +8,9 @@ export interface BackgroundStyleResult {
   needsColorExtraction: ComputedRef<boolean>;
 }
 
-/** Types that need DynamicBackground (artwork image / special layers) */
+/** Types that need DynamicBackground (blurred art ambient / special layers) */
 export const DYNAMIC_BACKGROUND_TYPES: readonly BackgroundType[] = [
+  'gradient-simple', // Apple/Plexamp: blurred cover + scrim
   'gradient-radial-corner',
   'blur-grain',
 ] as const;
@@ -71,8 +72,7 @@ export function useBackgroundStyle(
         };
 
       case 'gradient-simple':
-        // Field is applied by layouts via useAlbumTheme (RPi single-hue radial).
-        // Only text/progress fallbacks here if theme not layered yet.
+        // Field = blurred artwork in DynamicBackground; chrome from useAlbumTheme.
         return {
           background: 'transparent',
           '--text-color': '#f5f5f5',

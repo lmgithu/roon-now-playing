@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/**
+ * Full-bleed background layers.
+ *
+ * gradient-simple / blur-grain: Apple/Plexamp path — blurred album art + dark scrim.
+ * Other types: solid gradients / duotone handled by parent styles or gradient layer.
+ */
 import { computed, ref, watch } from 'vue';
 import type { BackgroundType } from '@roon-screen-cover/shared';
 import type { ExtractedPalette, VibrantGradient } from '../composables/useColorExtraction';
@@ -11,7 +17,6 @@ const props = defineProps<{
   vibrantGradient: VibrantGradient;
 }>();
 
-// Track artwork changes for crossfade transitions
 const currentArtwork = ref<string | null>(null);
 const previousArtwork = ref<string | null>(null);
 const isTransitioning = ref(false);
@@ -23,8 +28,6 @@ watch(
       previousArtwork.value = currentArtwork.value;
       currentArtwork.value = newUrl;
       isTransitioning.value = true;
-
-      // Clear transition state after animation duration (500ms)
       setTimeout(() => {
         isTransitioning.value = false;
         previousArtwork.value = null;
@@ -34,81 +37,87 @@ watch(
   { immediate: true }
 );
 
-// Background types that require artwork image
-const needsArtwork = computed(() => {
-  return props.type === 'blur-grain';
-});
+/** Blurred cover as ambient field (Plexamp / Apple Music) */
+const needsArtworkBlur = computed(
+  () => props.type === 'blur-grain' || props.type === 'gradient-simple'
+);
 
-// Background types that require noise overlay
-const needsNoise = computed(() => {
-  return props.type === 'blur-grain';
-});
+const needsNoise = computed(() => props.type === 'blur-grain');
 
-// Background style for gradient types
+const needsScrim = computed(() => needsArtworkBlur.value);
+
+const needsGradientLayer = computed(
+  () => !needsArtworkBlur.value && props.type === 'gradient-radial-corner'
+);
+
 const backgroundStyle = computed(() => {
   const { center, edge } = props.vibrantGradient;
-
-  switch (props.type) {
-    case 'gradient-radial-corner': {
-      return {
-        background: `radial-gradient(ellipse at 0% 0%, ${center} 0%, ${edge} 100%)`,
-      };
-    }
-
-    default:
-      return {};
+  if (props.type === 'gradient-radial-corner') {
+    return {
+      background: `radial-gradient(ellipse at 0% 0%, ${center} 0%, ${edge} 100%)`,
+    };
   }
+  return {};
 });
 
-// Image filter for artwork-based backgrounds
+/** Heavy blur + slight saturate so color reads at couch distance */
 const imageFilter = computed(() => {
-  switch (props.type) {
-    case 'blur-grain':
-      return 'blur(60px)';
-    default:
-      return 'none';
+  if (props.type === 'blur-grain') {
+    return 'blur(64px) saturate(1.08)';
   }
+  if (props.type === 'gradient-simple') {
+    // Slightly stronger blur = fewer “edge artifacts”; mild saturate like Apple wash
+    return 'blur(72px) saturate(1.12)';
+  }
+  return 'none';
 });
 </script>
 
 <template>
   <div class="dynamic-background">
-    <!-- Gradient layer (for gradient-based backgrounds) -->
+    <!-- Solid / corner gradient layer -->
     <div
-      v-if="!needsArtwork"
+      v-if="needsGradientLayer"
       class="gradient-layer"
       :style="backgroundStyle"
     />
 
-    <!-- Artwork background layers (for artwork-based backgrounds) -->
-    <template v-if="needsArtwork">
-      <!-- Previous artwork (fading out) -->
+    <!-- Fallback black when blur ambient but no art yet -->
+    <div
+      v-if="needsArtworkBlur && !currentArtwork"
+      class="fallback-black"
+    />
+
+    <!-- Blurred artwork ambient (gradient-simple + blur-grain) -->
+    <template v-if="needsArtworkBlur && currentArtwork">
       <img
         v-if="previousArtwork && isTransitioning"
         :src="previousArtwork"
         class="artwork-bg fade-out"
         :style="{ filter: imageFilter }"
         alt=""
+        decoding="async"
       />
-      <!-- Current artwork (fading in) -->
       <img
-        v-if="currentArtwork"
         :src="currentArtwork"
         class="artwork-bg"
         :class="{ 'fade-in': isTransitioning }"
         :style="{ filter: imageFilter }"
         alt=""
+        decoding="async"
       />
     </template>
 
-    <!-- Noise overlay -->
+    <!-- Dark scrim for text readability over blur -->
+    <div v-if="needsScrim" class="ambient-scrim" aria-hidden="true" />
+
+    <!-- Grain (blur-grain only) -->
     <div
       v-if="needsNoise"
       class="noise-overlay"
       :style="{ backgroundImage: `url(${noiseUrl})` }"
     />
 
-    <!-- Content slot -->
     <div class="content">
       <slot />
     </div>
@@ -121,6 +130,7 @@ const imageFilter = computed(() => {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: #000;
 }
 
 .gradient-layer {
@@ -129,12 +139,22 @@ const imageFilter = computed(() => {
   transition: background 0.5s ease;
 }
 
+.fallback-black {
+  position: absolute;
+  inset: 0;
+  background: #050505;
+}
+
+/* Oversize + cover so blur doesn’t show hard edges */
 .artwork-bg {
   position: absolute;
-  inset: -10%;
-  width: 120%;
-  height: 120%;
+  inset: -18%;
+  width: 136%;
+  height: 136%;
   object-fit: cover;
+  object-position: center;
+  transform: translateZ(0);
+  will-change: opacity;
 }
 
 .artwork-bg.fade-in {
@@ -163,11 +183,15 @@ const imageFilter = computed(() => {
   }
 }
 
-.duotone-overlay {
+/* Apple/Plexamp-style darkening so facts stay readable */
+.ambient-scrim {
   position: absolute;
   inset: 0;
-  mix-blend-mode: color;
-  opacity: 0.85;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 80% at 50% 42%, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0.78) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.15) 40%, rgba(0, 0, 0, 0.55) 100%);
+  z-index: 1;
 }
 
 .noise-overlay {
@@ -175,8 +199,9 @@ const imageFilter = computed(() => {
   inset: 0;
   background-repeat: repeat;
   background-size: 200px 200px;
-  opacity: 0.08;
+  opacity: 0.07;
   pointer-events: none;
+  z-index: 1;
 }
 
 .content {

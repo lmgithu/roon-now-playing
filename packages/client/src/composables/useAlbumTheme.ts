@@ -1,11 +1,11 @@
 /**
- * Album-linked theme — Apple Music / Plexamp ambient style.
+ * Chrome theme only (progress, dots, text tint).
  *
- * Rule: darken the album's vivid color, do NOT desaturate it into brown mud.
- *   Red fire art  → deep crimson field + bright red/orange bar
- *   B&W line art  → pure greys, no warm beige cast
+ * Ambient FIELD is the blurred artwork (DynamicBackground / gradient-simple),
+ * not a synthetic HSL radial — that was inventing gold/red bars on B&W covers.
  *
- * Color Thief removed. Pixel vivid-peak extraction only (albumPalette.ts).
+ * Accents come from pre-blurred mid-tone sampling (albumPalette). Low-chroma
+ * art → pure neutral greys. Never force high saturation.
  */
 import { computed, ref, watch, type CSSProperties, type MaybeRefOrGetter, toValue } from 'vue';
 import type { Track } from '@roon-screen-cover/shared';
@@ -13,15 +13,10 @@ import {
   extractAlbumPaletteFromImage,
   type AlbumPaletteResult,
 } from './albumPalette';
-import {
-  hslToString,
-  hslToRgb,
-  getContrastRatio,
-  type HSL,
-  type RGB,
-} from './colorUtils';
+import { hslToString, type HSL } from './colorUtils';
 
 export interface AlbumTheme {
+  /** Unused for field when blur ambient is on; kept for compat */
   background: string;
   factText: string;
   factMuted: string;
@@ -44,97 +39,55 @@ function hslCss(h: number, s: number, l: number, a?: number): string {
   return hslToString(h, s, l, a);
 }
 
+/** Neutral light chrome over dark blur field */
 function makeNeutralTheme(): AlbumTheme {
-  // Pure cool-neutral greys — never warm stone/olive
   return {
-    background:
-      'radial-gradient(ellipse at 28% 85%, hsl(0, 0%, 12%) 0%, hsl(0, 0%, 8%) 50%, hsl(0, 0%, 4%) 100%)',
-    factText: '#f0f0f0',
-    factMuted: 'rgba(240, 240, 240, 0.7)',
-    title: '#f0f0f0',
-    artist: 'rgba(240, 240, 240, 0.85)',
-    meta: 'rgba(240, 240, 240, 0.68)',
-    sep: 'rgba(240, 240, 240, 0.4)',
-    progressTrack: 'rgba(255, 255, 255, 0.22)',
-    progressFill: 'rgba(240, 240, 240, 0.92)',
-    dot: 'rgba(240, 240, 240, 0.3)',
-    dotActive: 'rgba(240, 240, 240, 0.95)',
-    coverRing: 'rgba(255, 255, 255, 0.1)',
+    background: 'transparent',
+    factText: '#f2f2f2',
+    factMuted: 'rgba(242, 242, 242, 0.72)',
+    title: '#f2f2f2',
+    artist: 'rgba(242, 242, 242, 0.88)',
+    meta: 'rgba(242, 242, 242, 0.7)',
+    sep: 'rgba(242, 242, 242, 0.42)',
+    progressTrack: 'rgba(255, 255, 255, 0.28)',
+    progressFill: 'rgba(245, 245, 245, 0.95)',
+    dot: 'rgba(245, 245, 245, 0.32)',
+    dotActive: 'rgba(245, 245, 245, 0.95)',
+    coverRing: 'rgba(0, 0, 0, 0.35)',
   };
 }
 
-function ensureTextOn(midRgb: RGB, t: HSL, minRatio: number): HSL {
-  let cur = { ...t };
-  for (let i = 0; i < 8; i++) {
-    if (getContrastRatio(midRgb, hslToRgb(cur.h, cur.s, cur.l)) >= minRatio) break;
-    cur.l = Math.min(96, cur.l + 3);
-  }
-  return cur;
-}
-
 /**
- * Map extracted palette → full UI theme (Apple-style ambient).
- *
- * Critical difference from the old code: background keeps HIGH saturation at
- * LOW lightness so red art stays deep red, not brown.
+ * Soft chrome from a confident mid-tone accent. No min-sat inventing.
  */
 export function buildAlbumThemeFromPalette(result: AlbumPaletteResult): AlbumTheme {
-  if (result.isMonochrome || result.primary.s < 8) {
+  if (result.isMonochrome || result.primary.s < 14) {
     return makeNeutralTheme();
   }
 
   const H = ((result.primary.h % 360) + 360) % 360;
-  // Source vividness — boost weak extractions so theme still reads as color
-  const srcS = clamp(result.primary.s, 0, 100);
+  // Soft accent — visible but not neon; only as chromatic as the source
+  const srcS = clamp(result.primary.s, 14, 55);
+  const barS = clamp(srcS * 0.85, 22, 52);
+  const barL = clamp(result.primary.l, 48, 62);
 
-  // --- Ambient field: same hue, HIGH sat, LOW light (deep album wash) ---
-  // Old bug: bgS = srcS * 0.55 capped at 30 → brown mud for reds/oranges.
-  // Apple/Plex: darken the vibrant color, keep chroma.
-  const bgS = clamp(Math.max(srcS * 0.9, 48), 42, 78);
-  const bgL = 14;
-  const midS = clamp(bgS * 0.92, 38, 72);
-  const midL = 10;
-  const edgeS = clamp(bgS * 0.8, 32, 65);
-  const edgeL = 5;
-
-  const bgCenter = hslToString(H, bgS, bgL);
-  const bgMid = hslToString(H, midS, midL);
-  const bgEdge = hslToString(H, edgeS, edgeL);
-  const midRgb = hslToRgb(H, midS, midL);
-
-  // --- Progress fill: vivid accent (the “status bar” color people notice) ---
-  const barS = clamp(Math.max(srcS, 50), 48, 82);
-  let barL = clamp(result.primary.l > 45 ? 56 : 52, 48, 62);
-  if (getContrastRatio(midRgb, hslToRgb(H, barS, barL)) < 2.8) {
-    barL = Math.min(64, barL + 8);
-  }
   const progressFill = hslCss(H, barS, barL);
-
-  // Track: light translucent tint of same hue (visible, not muddy)
-  const progressTrack = hslCss(H, clamp(barS * 0.55, 20, 45), 72, 0.28);
-
-  // --- Text: soft tinted ivory (hue visible at couch distance) ---
-  const factS = clamp(srcS * 0.25, 8, 22);
-  const fact = ensureTextOn(midRgb, { h: H, s: factS, l: 90 }, 4.5);
-  const title = ensureTextOn(midRgb, { h: H, s: clamp(factS * 0.9, 6, 18), l: 92 }, 4.5);
-  const artist = ensureTextOn(midRgb, { h: H, s: clamp(factS * 0.7, 4, 14), l: 84 }, 3.5);
-  const meta = ensureTextOn(midRgb, { h: H, s: clamp(factS * 0.5, 2, 12), l: 78 }, 3.0);
-
-  const dotIdle = hslCss(H, clamp(barS * 0.4, 10, 30), 80, 0.35);
+  const progressTrack = 'rgba(255, 255, 255, 0.28)';
+  const factS = clamp(srcS * 0.2, 0, 12);
 
   return {
-    background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
-    factText: hslCss(fact.h, fact.s, fact.l),
-    factMuted: hslCss(fact.h, fact.s, fact.l, 0.72),
-    title: hslCss(title.h, title.s, title.l),
-    artist: hslCss(artist.h, artist.s, artist.l, 0.9),
-    meta: hslCss(meta.h, meta.s, meta.l, 0.78),
-    sep: hslCss(meta.h, clamp(meta.s * 0.8, 0, 12), meta.l, 0.45),
+    background: 'transparent',
+    factText: factS > 4 ? hslCss(H, factS, 92) : '#f2f2f2',
+    factMuted: factS > 4 ? hslCss(H, factS, 90, 0.72) : 'rgba(242, 242, 242, 0.72)',
+    title: '#f2f2f2',
+    artist: 'rgba(242, 242, 242, 0.88)',
+    meta: 'rgba(242, 242, 242, 0.7)',
+    sep: 'rgba(242, 242, 242, 0.42)',
     progressTrack,
     progressFill,
-    dot: dotIdle,
+    dot: 'rgba(245, 245, 245, 0.32)',
     dotActive: progressFill,
-    coverRing: hslCss(H, clamp(bgS * 0.5, 10, 30), clamp(bgL + 8, 12, 28), 0.4),
+    coverRing: 'rgba(0, 0, 0, 0.35)',
   };
 }
 
@@ -145,11 +98,11 @@ export interface UseAlbumThemeOptions {
   artworkUrl: MaybeRefOrGetter<string | null>;
   track?: MaybeRefOrGetter<Track | null | undefined>;
   progress?: MaybeRefOrGetter<number>;
+  /** @deprecated Field is blurred art; background CSS is not applied */
   includeBackground?: boolean;
 }
 
 export function useAlbumTheme(options: UseAlbumThemeOptions) {
-  const includeBackground = options.includeBackground !== false;
   const theme = ref<AlbumTheme>(makeNeutralTheme());
   let sampleGeneration = 0;
 
@@ -171,7 +124,7 @@ export function useAlbumTheme(options: UseAlbumThemeOptions) {
         const palette = extractAlbumPaletteFromImage(img);
         theme.value = buildAlbumThemeFromPalette(palette);
       } catch (err) {
-        console.warn('[album-theme] extraction failed', err);
+        console.warn('[album-theme] chrome extraction failed', err);
         if (gen === sampleGeneration) theme.value = makeNeutralTheme();
       }
     };
@@ -200,7 +153,7 @@ export function useAlbumTheme(options: UseAlbumThemeOptions) {
 
   const cssVars = computed((): CSSProperties => {
     const t = theme.value;
-    const vars: CSSProperties = {
+    return {
       ['--rpi-fact' as string]: t.factText,
       ['--rpi-fact-muted' as string]: t.factMuted,
       ['--rpi-title' as string]: t.title,
@@ -220,10 +173,6 @@ export function useAlbumTheme(options: UseAlbumThemeOptions) {
       ['--text-secondary' as string]: t.artist,
       ['--text-tertiary' as string]: t.meta,
     };
-    if (includeBackground) {
-      (vars as Record<string, string>).background = t.background;
-    }
-    return vars;
   });
 
   return {

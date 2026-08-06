@@ -96,7 +96,7 @@ export const BACKGROUNDS = [
 ] as const;
 export type BackgroundType = (typeof BACKGROUNDS)[number];
 
-/** Default for new screens / invalid stored values (RPi album-tinted field) */
+/** Default: blurred album ambient (Apple/Plexamp-style) */
 export const DEFAULT_BACKGROUND: BackgroundType = 'gradient-simple';
 
 // Background category type
