@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.36] - 2026-08-06
+
+### Changed
+
+- Same as 2.0.35 (blur ambient + safe chrome). Re-release after GHCR publish failures (hosted runners not acquired) and `latest` tag fix for version tags.
+
+### Fixed
+
+- **CI:** Docker workflow tags `latest` on version tags; concurrency + buildx v6; cancel stuck publishes.
+
 ## [2.0.35] - 2026-08-06
 
 ### Changed
