@@ -42,9 +42,9 @@ export interface ExtractedPalette {
 }
 
 // Color extraction parameters
-export const SAMPLE_SIZE = 50; // Canvas size for sampling
-export const HUE_BUCKETS = 12; // Number of hue groups
-export const LOW_SATURATION_THRESHOLD = 15; // Below this = grayscale
+export const SAMPLE_SIZE = 96; // Higher sample for sparse logos on dark covers
+export const HUE_BUCKETS = 18; // Finer hue resolution
+export const LOW_SATURATION_THRESHOLD = 8; // Only true near-gray averages
 
 // Lightness bounds for light mode backgrounds
 export const LIGHT_MODE_MIN_L = 75;
@@ -196,92 +196,112 @@ export function getContrastRatio(color1: RGB, color2: RGB): number {
 }
 
 /**
- * Extract dominant color from image data using hue buckets
+ * Extract dominant color from image data using hue buckets.
+ * Prefers sparse chromatic peaks (logo-on-black) over global average gray.
  */
 export function extractDominantColor(imageData: ImageData): HSL {
   const pixels = imageData.data;
-  const hueBuckets: { colors: HSL[]; count: number; saturationSum: number }[] = Array.from(
-    { length: HUE_BUCKETS },
-    () => ({ colors: [], count: 0, saturationSum: 0 })
-  );
+  const hueBuckets: { colors: HSL[]; count: number; saturationSum: number; weightSum: number }[] =
+    Array.from({ length: HUE_BUCKETS }, () => ({
+      colors: [],
+      count: 0,
+      saturationSum: 0,
+      weightSum: 0,
+    }));
 
   let totalSaturation = 0;
   let pixelCount = 0;
+  let chromaticCount = 0;
+  let sumR = 0,
+    sumG = 0,
+    sumB = 0;
 
-  // Sample pixels and group by hue
   for (let i = 0; i < pixels.length; i += 4) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-    const a = pixels[i + 3];
-
-    // Skip transparent pixels
+    const r = pixels[i]!;
+    const g = pixels[i + 1]!;
+    const b = pixels[i + 2]!;
+    const a = pixels[i + 3]!;
     if (a < 128) continue;
 
     const hsl = rgbToHsl(r, g, b);
     totalSaturation += hsl.s;
     pixelCount++;
+    sumR += r;
+    sumG += g;
+    sumB += b;
 
-    // Only consider pixels with meaningful saturation for hue analysis
-    if (hsl.s >= 10) {
+    // Include lower sat for dark reds/golds; weight by sat² so sparse logos win
+    if (hsl.s >= 5) {
+      chromaticCount++;
       const bucketIndex = Math.floor(hsl.h / (360 / HUE_BUCKETS)) % HUE_BUCKETS;
-      hueBuckets[bucketIndex].colors.push(hsl);
-      hueBuckets[bucketIndex].count++;
-      hueBuckets[bucketIndex].saturationSum += hsl.s;
+      const w = (hsl.s / 100) ** 2 * (hsl.l < 20 ? 1.3 : 1);
+      hueBuckets[bucketIndex]!.colors.push(hsl);
+      hueBuckets[bucketIndex]!.count++;
+      hueBuckets[bucketIndex]!.saturationSum += hsl.s;
+      hueBuckets[bucketIndex]!.weightSum += w;
     }
   }
 
   const avgSaturation = pixelCount > 0 ? totalSaturation / pixelCount : 0;
+  const chromaticRatio = pixelCount > 0 ? chromaticCount / pixelCount : 0;
 
-  // If image is essentially grayscale, return neutral color
-  if (avgSaturation < LOW_SATURATION_THRESHOLD) {
-    // Calculate average lightness to determine warm vs cool gray
+  // Sparse color on dark art: still use chromatic buckets even if avg sat is low
+  const hasUsefulChroma = chromaticRatio >= 0.01 && chromaticCount >= 4;
+
+  if (!hasUsefulChroma && avgSaturation < LOW_SATURATION_THRESHOLD) {
     let totalLightness = 0;
     let lCount = 0;
     for (let i = 0; i < pixels.length; i += 4) {
-      if (pixels[i + 3] >= 128) {
-        const hsl = rgbToHsl(pixels[i], pixels[i + 1], pixels[i + 2]);
+      if (pixels[i + 3]! >= 128) {
+        const hsl = rgbToHsl(pixels[i]!, pixels[i + 1]!, pixels[i + 2]!);
         totalLightness += hsl.l;
         lCount++;
       }
     }
     const avgLightness = lCount > 0 ? totalLightness / lCount : 50;
-
-    // Neutral gray with slight warm or cool tint
-    return { h: 220, s: 5, l: Math.round(avgLightness) };
+    // Residual cast from average RGB (warm/cool print bias), not fixed blue-gray
+    if (pixelCount > 0) {
+      const ar = sumR / pixelCount;
+      const ag = sumG / pixelCount;
+      const ab = sumB / pixelCount;
+      const span = Math.max(ar, ag, ab) - Math.min(ar, ag, ab);
+      if (span >= 2.5) {
+        const cast = rgbToHsl(Math.round(ar), Math.round(ag), Math.round(ab));
+        return {
+          h: cast.h,
+          s: Math.max(cast.s, Math.min(14, Math.round(span * 0.4))),
+          l: Math.round(avgLightness),
+        };
+      }
+    }
+    return { h: 0, s: 0, l: Math.round(avgLightness) };
   }
 
-  // Find the bucket with highest average saturation (most vibrant colors)
-  let bestBucket = hueBuckets[0];
+  let bestBucket = hueBuckets[0]!;
   let bestScore = 0;
 
   for (const bucket of hueBuckets) {
     if (bucket.count === 0) continue;
-
-    // Score based on count and average saturation
     const avgBucketSat = bucket.saturationSum / bucket.count;
-    const score = bucket.count * (avgBucketSat / 100);
-
+    // weightSum favors high-sat / dark-chromatic clusters over large muddy areas
+    const score = bucket.weightSum * (0.5 + avgBucketSat / 100) + bucket.count * 0.02;
     if (score > bestScore) {
       bestScore = score;
       bestBucket = bucket;
     }
   }
 
-  // No valid bucket found
   if (bestBucket.colors.length === 0) {
-    return { h: 30, s: 20, l: 50 };
+    return { h: 0, s: 0, l: 40 };
   }
 
-  // Calculate weighted average of colors in the best bucket
-  // Weight by saturation to prefer more vibrant samples
   let weightedH = 0;
   let weightedS = 0;
   let weightedL = 0;
   let totalWeight = 0;
 
   for (const color of bestBucket.colors) {
-    const weight = color.s / 100;
+    const weight = Math.max(0.05, (color.s / 100) ** 2);
     weightedH += color.h * weight;
     weightedS += color.s * weight;
     weightedL += color.l * weight;
@@ -289,7 +309,7 @@ export function extractDominantColor(imageData: ImageData): HSL {
   }
 
   if (totalWeight === 0) {
-    return { h: 30, s: 20, l: 50 };
+    return { h: 0, s: 0, l: 40 };
   }
 
   return {
@@ -325,21 +345,21 @@ export function extractColorPalette(imageData: ImageData, maxColors: number = 5)
 
     const hsl = rgbToHsl(r, g, b);
 
-    // Only consider pixels with meaningful saturation for hue analysis
-    if (hsl.s >= 10) {
+    // Lower sat floor so dark reds/golds on black covers enter the palette
+    if (hsl.s >= 5) {
       const bucketIndex = Math.floor(hsl.h / (360 / HUE_BUCKETS)) % HUE_BUCKETS;
-      hueBuckets[bucketIndex].colors.push(hsl);
-      hueBuckets[bucketIndex].count++;
-      hueBuckets[bucketIndex].saturationSum += hsl.s;
+      hueBuckets[bucketIndex]!.colors.push(hsl);
+      hueBuckets[bucketIndex]!.count++;
+      hueBuckets[bucketIndex]!.saturationSum += hsl.s;
     }
   }
 
-  // Score and sort buckets by prominence (count * average saturation)
+  // Score: sat-weighted so sparse logos beat large gray fields
   const scoredBuckets = hueBuckets
     .map((bucket, index) => {
       if (bucket.count === 0) return null;
       const avgSaturation = bucket.saturationSum / bucket.count;
-      const score = bucket.count * (avgSaturation / 100);
+      const score = bucket.count * (avgSaturation / 100) ** 1.4;
       return { bucket, index, score };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)

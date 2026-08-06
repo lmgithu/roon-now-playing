@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.33] - 2026-08-06
+
+### Changed
+
+- **Album color extraction overhaul:** multi-strategy palette (canvas median-cut + chromatic-peak + residual warm/cool cast + Color Thief merge). Removed seeded random accent fallbacks; dark/B&W rock covers keep image-derived cast or honest neutrals. Sparse logos on black art now drive status-bar / progress / field tint. Blue ban removed; sample size and hue buckets increased for better dominant extraction across layouts.
+
 ## [2.0.32] - 2026-08-04
 
 ### Changed
