@@ -1,13 +1,14 @@
 /**
- * Album-linked single-hue theme from real artwork pixels.
+ * Album-linked theme — Apple Music / Plexamp ambient style.
  *
- * Multi-strategy extraction (canvas quantizer + chromatic peak + residual cast
- * + Color Thief merge). Random accent tables are gone — dark / B&W covers keep
- * their residual warm/cool cast or honest neutrals derived from the image.
+ * Rule: darken the album's vivid color, do NOT desaturate it into brown mud.
+ *   Red fire art  → deep crimson field + bright red/orange bar
+ *   B&W line art  → pure greys, no warm beige cast
+ *
+ * Color Thief removed. Pixel vivid-peak extraction only (albumPalette.ts).
  */
 import { computed, ref, watch, type CSSProperties, type MaybeRefOrGetter, toValue } from 'vue';
 import type { Track } from '@roon-screen-cover/shared';
-import { getSwatchesSync, getPaletteSync, type Color, type SwatchMap } from 'colorthief';
 import {
   extractAlbumPaletteFromImage,
   type AlbumPaletteResult,
@@ -21,7 +22,6 @@ import {
 } from './colorUtils';
 
 export interface AlbumTheme {
-  /** CSS background (gradient) */
   background: string;
   factText: string;
   factMuted: string;
@@ -36,11 +36,6 @@ export interface AlbumTheme {
   coverRing: string;
 }
 
-/** Soft caps so progress never goes neon on OLED — still allows real album hue. */
-const ACCENT_S_MAX = 42;
-const ACCENT_L_MIN = 42;
-const ACCENT_L_MAX = 58;
-
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
@@ -49,144 +44,83 @@ function hslCss(h: number, s: number, l: number, a?: number): string {
   return hslToString(h, s, l, a);
 }
 
-/** Technical failure only — no random seeded accents. */
 function makeNeutralTheme(): AlbumTheme {
+  // Pure cool-neutral greys — never warm stone/olive
   return {
-    background: 'radial-gradient(ellipse at 28% 85%, hsl(0, 0%, 14%) 0%, hsl(0, 0%, 9%) 52%, hsl(0, 0%, 5%) 100%)',
-    factText: '#f2f2f2',
-    factMuted: 'rgba(242, 242, 242, 0.7)',
-    title: '#f2f2f2',
-    artist: 'rgba(242, 242, 242, 0.85)',
-    meta: 'rgba(242, 242, 242, 0.7)',
-    sep: 'rgba(242, 242, 242, 0.45)',
-    progressTrack: 'rgba(242, 242, 242, 0.4)',
-    progressFill: '#e8e8e8',
-    dot: 'rgba(242, 242, 242, 0.32)',
-    dotActive: '#e8e8e8',
-    coverRing: 'rgba(242, 242, 242, 0.12)',
+    background:
+      'radial-gradient(ellipse at 28% 85%, hsl(0, 0%, 12%) 0%, hsl(0, 0%, 8%) 50%, hsl(0, 0%, 4%) 100%)',
+    factText: '#f0f0f0',
+    factMuted: 'rgba(240, 240, 240, 0.7)',
+    title: '#f0f0f0',
+    artist: 'rgba(240, 240, 240, 0.85)',
+    meta: 'rgba(240, 240, 240, 0.68)',
+    sep: 'rgba(240, 240, 240, 0.4)',
+    progressTrack: 'rgba(255, 255, 255, 0.22)',
+    progressFill: 'rgba(240, 240, 240, 0.92)',
+    dot: 'rgba(240, 240, 240, 0.3)',
+    dotActive: 'rgba(240, 240, 240, 0.95)',
+    coverRing: 'rgba(255, 255, 255, 0.1)',
   };
-}
-
-function colorToHsl(c: Color): HSL {
-  const { h, s, l } = c.hsl();
-  return { h, s, l };
-}
-
-/** Collect Color Thief HSL candidates (best-effort; never required). */
-function collectThiefCandidates(img: HTMLImageElement): HSL[] {
-  const out: HSL[] = [];
-  const passes: Array<{ colorCount: number; quality: number; colorSpace?: 'oklch' | 'rgb' }> = [
-    { colorCount: 12, quality: 3, colorSpace: 'oklch' },
-    { colorCount: 10, quality: 5, colorSpace: 'rgb' },
-    { colorCount: 8, quality: 8 },
-  ];
-
-  for (const opts of passes) {
-    try {
-      const swatches = getSwatchesSync(img, opts as Parameters<typeof getSwatchesSync>[1]);
-      const palette = getPaletteSync(img, opts as Parameters<typeof getPaletteSync>[1]) ?? [];
-      if (swatches) {
-        const keys: Array<keyof SwatchMap> = [
-          'Vibrant',
-          'DarkVibrant',
-          'Muted',
-          'DarkMuted',
-          'LightVibrant',
-          'LightMuted',
-        ];
-        for (const key of keys) {
-          const sw = swatches[key];
-          if (sw) out.push(colorToHsl(sw.color));
-        }
-      }
-      for (const c of palette) {
-        out.push(colorToHsl(c));
-      }
-      if (out.length >= 4) break;
-    } catch {
-      // try next pass
-    }
-  }
-  return out;
 }
 
 function ensureTextOn(midRgb: RGB, t: HSL, minRatio: number): HSL {
   let cur = { ...t };
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
     if (getContrastRatio(midRgb, hslToRgb(cur.h, cur.s, cur.l)) >= minRatio) break;
-    cur.l = Math.min(94, cur.l + 3);
-    cur.s = Math.max(0, cur.s * 0.97);
+    cur.l = Math.min(96, cur.l + 3);
   }
   return cur;
 }
 
 /**
- * Map extracted palette → full album UI theme.
- * Always uses the image-derived primary (including mono residual cast).
+ * Map extracted palette → full UI theme (Apple-style ambient).
+ *
+ * Critical difference from the old code: background keeps HIGH saturation at
+ * LOW lightness so red art stays deep red, not brown.
  */
 export function buildAlbumThemeFromPalette(result: AlbumPaletteResult): AlbumTheme {
-  let H = ((result.primary.h % 360) + 360) % 360;
-  let baseS = clamp(result.primary.s, 0, 100);
-  const mono = result.isMonochrome || baseS < 5;
+  if (result.isMonochrome || result.primary.s < 8) {
+    return makeNeutralTheme();
+  }
 
-  // Usable tint: amplify whisper chroma for UI roles without inventing hues
-  const uiS = mono
-    ? clamp(Math.max(baseS, result.primary.s > 0 ? 8 : 0), 0, 16)
-    : clamp(Math.max(baseS, 10), 10, 48);
+  const H = ((result.primary.h % 360) + 360) % 360;
+  // Source vividness — boost weak extractions so theme still reads as color
+  const srcS = clamp(result.primary.s, 0, 100);
 
-  const chromatic = uiS >= 5;
-
-  // --- Background wash from album temperature ---
-  const bgS = chromatic ? clamp(uiS * 0.55, 10, 30) : 0;
-  const bgL = chromatic ? 16 : 11;
-  const midS = chromatic ? clamp(bgS * 0.9, 8, 26) : 0;
-  const midL = chromatic ? 12 : 8;
-  const edgeS = chromatic ? clamp(bgS * 0.75, 6, 22) : 0;
-  const edgeL = chromatic ? 7 : 5;
+  // --- Ambient field: same hue, HIGH sat, LOW light (deep album wash) ---
+  // Old bug: bgS = srcS * 0.55 capped at 30 → brown mud for reds/oranges.
+  // Apple/Plex: darken the vibrant color, keep chroma.
+  const bgS = clamp(Math.max(srcS * 0.9, 48), 42, 78);
+  const bgL = 14;
+  const midS = clamp(bgS * 0.92, 38, 72);
+  const midL = 10;
+  const edgeS = clamp(bgS * 0.8, 32, 65);
+  const edgeL = 5;
 
   const bgCenter = hslToString(H, bgS, bgL);
   const bgMid = hslToString(H, midS, midL);
   const bgEdge = hslToString(H, edgeS, edgeL);
   const midRgb = hslToRgb(H, midS, midL);
 
-  // --- Progress accent: same hue, readable sat ---
-  let barH = H;
-  let barS = chromatic ? clamp(uiS * 0.75, 16, ACCENT_S_MAX) : 0;
-  let barL = chromatic ? clamp(50 + (uiS > 30 ? -2 : 2), ACCENT_L_MIN, ACCENT_L_MAX) : 54;
-  if (!chromatic) {
-    barH = 0;
-    barS = 0;
-    barL = 54;
+  // --- Progress fill: vivid accent (the “status bar” color people notice) ---
+  const barS = clamp(Math.max(srcS, 50), 48, 82);
+  let barL = clamp(result.primary.l > 45 ? 56 : 52, 48, 62);
+  if (getContrastRatio(midRgb, hslToRgb(H, barS, barL)) < 2.8) {
+    barL = Math.min(64, barL + 8);
   }
-  if (getContrastRatio(midRgb, hslToRgb(barH, barS, barL)) < 2.6) {
-    barL = Math.min(60, barL + 8);
-  }
+  const progressFill = hslCss(H, barS, barL);
 
-  // --- Fact / strip text: tinted ivory when chromatic ---
-  const factS = chromatic ? clamp(uiS * 0.55, 10, 28) : 0;
-  const fact = ensureTextOn(midRgb, { h: H, s: factS, l: chromatic ? 86 : 91 }, 4.5);
+  // Track: light translucent tint of same hue (visible, not muddy)
+  const progressTrack = hslCss(H, clamp(barS * 0.55, 20, 45), 72, 0.28);
 
-  const stripS = chromatic ? clamp(uiS * 0.45, 8, 22) : 0;
-  const title = ensureTextOn(midRgb, { h: H, s: stripS, l: 90 }, 4.5);
-  const artist = ensureTextOn(
-    midRgb,
-    { h: H, s: chromatic ? clamp(stripS * 0.9, 6, 18) : 0, l: 82 },
-    3.5
-  );
-  const meta = ensureTextOn(
-    midRgb,
-    { h: H, s: chromatic ? clamp(stripS * 0.75, 4, 14) : 0, l: 76 },
-    3.0
-  );
+  // --- Text: soft tinted ivory (hue visible at couch distance) ---
+  const factS = clamp(srcS * 0.25, 8, 22);
+  const fact = ensureTextOn(midRgb, { h: H, s: factS, l: 90 }, 4.5);
+  const title = ensureTextOn(midRgb, { h: H, s: clamp(factS * 0.9, 6, 18), l: 92 }, 4.5);
+  const artist = ensureTextOn(midRgb, { h: H, s: clamp(factS * 0.7, 4, 14), l: 84 }, 3.5);
+  const meta = ensureTextOn(midRgb, { h: H, s: clamp(factS * 0.5, 2, 12), l: 78 }, 3.0);
 
-  const progressFill = hslCss(barH, barS, barL);
-  const progressTrack = chromatic
-    ? hslCss(barH, clamp(barS, 0, 20), clamp(bgL + 24, 32, 42), 0.52)
-    : 'rgba(242, 242, 242, 0.4)';
-
-  const dotIdle = chromatic
-    ? hslCss(H, clamp(stripS * 0.65, 0, 14), 88, 0.34)
-    : 'rgba(242, 242, 242, 0.32)';
+  const dotIdle = hslCss(H, clamp(barS * 0.4, 10, 30), 80, 0.35);
 
   return {
     background: `radial-gradient(ellipse at 26% 88%, ${bgCenter} 0%, ${bgMid} 48%, ${bgEdge} 100%)`,
@@ -195,14 +129,12 @@ export function buildAlbumThemeFromPalette(result: AlbumPaletteResult): AlbumThe
     title: hslCss(title.h, title.s, title.l),
     artist: hslCss(artist.h, artist.s, artist.l, 0.9),
     meta: hslCss(meta.h, meta.s, meta.l, 0.78),
-    sep: hslCss(meta.h, clamp(meta.s * 0.85, 0, 12), meta.l, 0.5),
+    sep: hslCss(meta.h, clamp(meta.s * 0.8, 0, 12), meta.l, 0.45),
     progressTrack,
     progressFill,
     dot: dotIdle,
     dotActive: progressFill,
-    coverRing: chromatic
-      ? hslCss(barH, clamp(bgS, 0, 18), clamp(bgL + 10, 14, 26), 0.45)
-      : 'rgba(242, 242, 242, 0.12)',
+    coverRing: hslCss(H, clamp(bgS * 0.5, 10, 30), clamp(bgL + 8, 12, 28), 0.4),
   };
 }
 
@@ -213,7 +145,6 @@ export interface UseAlbumThemeOptions {
   artworkUrl: MaybeRefOrGetter<string | null>;
   track?: MaybeRefOrGetter<Track | null | undefined>;
   progress?: MaybeRefOrGetter<number>;
-  /** When true (default), include background gradient in cssVars */
   includeBackground?: boolean;
 }
 
@@ -237,13 +168,10 @@ export function useAlbumTheme(options: UseAlbumThemeOptions) {
     img.onload = () => {
       if (gen !== sampleGeneration) return;
       try {
-        // 1) Color Thief (optional merge)
-        const thief = collectThiefCandidates(img);
-        // 2) Canvas multi-strategy (primary source of truth)
-        const palette = extractAlbumPaletteFromImage(img, thief);
+        const palette = extractAlbumPaletteFromImage(img);
         theme.value = buildAlbumThemeFromPalette(palette);
       } catch (err) {
-        console.warn('[album-theme] extraction failed; neutral theme', err);
+        console.warn('[album-theme] extraction failed', err);
         if (gen === sampleGeneration) theme.value = makeNeutralTheme();
       }
     };

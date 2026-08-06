@@ -1,28 +1,33 @@
 /**
- * Multi-strategy album palette extraction.
+ * Album palette extraction — Apple Music / Plexamp style.
  *
- * Goal: almost always derive UI colors from real artwork pixels —
- * including dark / near-B&W rock covers that Color Thief alone treats
- * as “no color”. Random accent tables are intentionally not used here.
+ * Goal: the UI ambient color must READ as the album (deep red for red fire art,
+ * pure grey for B&W). We never crush chromatic art into brown mud, and we never
+ * invent random accent hues.
+ *
+ * Pipeline:
+ *  1. Sample artwork pixels on a canvas
+ *  2. Find the most *vivid* color (sat²-weighted hue peak) — not the average grey
+ *  3. Detect true monochrome (B&W line art) separately
+ *  4. Theme builder darkens the vivid color while KEEPING saturation high
  */
-import { rgbToHsl, type HSL, type RGB } from './colorUtils';
+import { rgbToHsl, type HSL } from './colorUtils';
 
 export interface AlbumPaletteResult {
-  /** Primary accent hue for UI (always present when pixels exist) */
+  /** Vivid accent taken from the art (high sat when art has color) */
   primary: HSL;
-  /** Secondary hue if distinct enough, else same as primary */
+  /** Secondary if distinct */
   secondary: HSL;
-  /** Full ranked palette (chromatic first, then neutrals) */
   palette: HSL[];
-  /** True when artwork is essentially monochrome (but may still have warm/cool cast) */
+  /** True B&W / near-grey art — UI must stay neutral greys */
   isMonochrome: boolean;
-  /** Fraction of opaque pixels with sat >= 8 */
+  /** Fraction of opaque pixels with sat ≥ 12 */
   chromaticRatio: number;
-  /** How we chose primary */
-  source: 'chromatic-peak' | 'quantized' | 'residual-cast' | 'luminance';
+  source: 'vivid-peak' | 'quantized' | 'monochrome' | 'empty';
 }
 
-const SAMPLE = 96; // canvas edge for analysis (good detail, cheap)
+const SAMPLE = 128;
+const HUE_BINS = 36; // 10° bins
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
@@ -32,7 +37,6 @@ function hueDist(a: number, b: number): number {
   return Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
 }
 
-/** Draw image into analysis canvas; returns null if canvas unavailable. */
 export function imageToSampleData(
   img: HTMLImageElement | HTMLCanvasElement,
   size: number = SAMPLE
@@ -43,63 +47,118 @@ export function imageToSampleData(
     canvas.height = size;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
-    ctx.drawImage(img as CanvasImageSource, 0, 0, size, size);
+    // Cover-style: slight crop of edges reduces black frames/borders dominating
+    const inset = 0.04;
+    const sw = (img as HTMLImageElement).naturalWidth || (img as HTMLCanvasElement).width || size;
+    const sh = (img as HTMLImageElement).naturalHeight || (img as HTMLCanvasElement).height || size;
+    const sx = sw * inset;
+    const sy = sh * inset;
+    const sww = sw * (1 - inset * 2);
+    const shh = sh * (1 - inset * 2);
+    ctx.drawImage(img as CanvasImageSource, sx, sy, sww, shh, 0, 0, size, size);
     return ctx.getImageData(0, 0, size, size);
   } catch {
     return null;
   }
 }
 
-interface PixelSample {
+interface Pix {
   r: number;
   g: number;
   b: number;
   h: number;
   s: number;
   l: number;
-  /** chroma-ish weight for clustering */
-  weight: number;
 }
 
-function collectPixels(imageData: ImageData): PixelSample[] {
+function collect(imageData: ImageData): Pix[] {
   const { data } = imageData;
-  const out: PixelSample[] = [];
-  // stride 1 = every pixel on SAMPLE×SAMPLE
+  const out: Pix[] = [];
   for (let i = 0; i < data.length; i += 4) {
-    const a = data[i + 3]!;
-    if (a < 128) continue;
+    if ((data[i + 3] ?? 0) < 128) continue;
     const r = data[i]!;
     const g = data[i + 1]!;
     const b = data[i + 2]!;
-    // Skip pure extremes that dominate logo/frames
-    if ((r < 6 && g < 6 && b < 6) || (r > 250 && g > 250 && b > 250)) {
-      // still keep a thinned sample so all-black covers aren't empty
-      if ((i / 4) % 17 !== 0) continue;
-    }
-    const hsl = rgbToHsl(r, g, b);
-    // Weight: boost mid-chroma and mid-lightness (readable accents);
-    // still include dark chromatic (deep reds/golds on black covers).
-    const chromaBoost = hsl.s >= 6 ? 1 + hsl.s / 40 : 0.25;
-    const midL = 1 - Math.abs(hsl.l - 45) / 55;
-    const weight = chromaBoost * (0.45 + 0.55 * clamp(midL, 0, 1));
-    out.push({ r, g, b, h: hsl.h, s: hsl.s, l: hsl.l, weight });
+    const { h, s, l } = rgbToHsl(r, g, b);
+    out.push({ r, g, b, h, s, l });
   }
   return out;
 }
 
-/** Simple median-cut style quantization on RGB. */
-function quantize(pixels: PixelSample[], maxColors: number): Array<{ color: HSL; count: number; weight: number }> {
-  if (pixels.length === 0) return [];
+/**
+ * Vivid peak: among chromatic pixels, pick the hue bin with max Σ(sat²).
+ * This finds fire-red / logo color even when most of the cover is black.
+ */
+function findVividPeak(pixels: Pix[]): { color: HSL; mass: number } | null {
+  type Bin = { w: number; x: number; y: number; sSum: number; lSum: number; n: number };
+  const bins: Bin[] = Array.from({ length: HUE_BINS }, () => ({
+    w: 0,
+    x: 0,
+    y: 0,
+    sSum: 0,
+    lSum: 0,
+    n: 0,
+  }));
 
-  type Box = { items: PixelSample[] };
+  let chromatic = 0;
+  for (const p of pixels) {
+    // Include moderately sat dark reds (HSL sat collapses near black)
+    // Use RGB chroma as a better dark-color signal:
+    const max = Math.max(p.r, p.g, p.b);
+    const min = Math.min(p.r, p.g, p.b);
+    const rgbChroma = max - min; // 0–255
+    if (rgbChroma < 18 && p.s < 10) continue; // truly grey
+    chromatic++;
+
+    // Weight: prefer saturated mid-tones but KEEP dark chromatic (embers, blood red)
+    const satW = Math.max(p.s / 100, rgbChroma / 255);
+    const weight = satW * satW * (p.l < 18 ? 1.6 : p.l > 88 ? 0.35 : 1.15);
+    const bin = Math.floor(p.h / (360 / HUE_BINS)) % HUE_BINS;
+    const b = bins[bin]!;
+    const rad = (p.h * Math.PI) / 180;
+    b.w += weight;
+    b.x += Math.cos(rad) * weight;
+    b.y += Math.sin(rad) * weight;
+    b.sSum += Math.max(p.s, (rgbChroma / 255) * 100) * weight;
+    b.lSum += Math.max(p.l, 20) * weight; // don't let pure black drag L to 0
+    b.n += 1;
+  }
+
+  if (chromatic < 4) return null;
+
+  let best: Bin | null = null;
+  let bestScore = -1;
+  for (const b of bins) {
+    if (b.w <= 0) continue;
+    // Score = mass (sat² weight). Favor bins that actually have chroma.
+    const avgS = b.sSum / b.w;
+    const score = b.w * (0.5 + avgS / 100);
+    if (score > bestScore) {
+      bestScore = score;
+      best = b;
+    }
+  }
+  if (!best || best.w < 0.001) return null;
+
+  let h = (Math.atan2(best.y, best.x) * 180) / Math.PI;
+  if (h < 0) h += 360;
+  const s = clamp(Math.round(best.sSum / best.w), 8, 100);
+  const l = clamp(Math.round(best.lSum / best.w), 18, 72);
+  return { color: { h: Math.round(h) % 360, s, l }, mass: best.w };
+}
+
+/**
+ * Simple median-cut for a secondary palette (optional).
+ */
+function quantize(pixels: Pix[], maxColors: number): HSL[] {
+  if (pixels.length === 0) return [];
+  type Box = { items: Pix[] };
   const boxes: Box[] = [{ items: pixels }];
 
   while (boxes.length < maxColors) {
-    // Split box with largest channel range among weighted chromatic preference
     let bestIdx = -1;
     let bestRange = -1;
-    let bestChannel: 0 | 1 | 2 = 0;
-
+    let bestCh: 0 | 1 | 2 = 0;
     for (let i = 0; i < boxes.length; i++) {
       const items = boxes[i]!.items;
       if (items.length < 2) continue;
@@ -124,220 +183,58 @@ function quantize(pixels: PixelSample[], maxColors: number): Array<{ color: HSL;
       ];
       ranges.sort((a, b) => b.range - a.range);
       const top = ranges[0]!;
-      // Prefer boxes with more chromatic mass
-      const chromaMass = items.reduce((s, p) => s + p.s * p.weight, 0) / items.length;
-      const score = top.range * (1 + chromaMass / 80);
-      if (score > bestRange) {
-        bestRange = score;
+      if (top.range > bestRange) {
+        bestRange = top.range;
         bestIdx = i;
-        bestChannel = top.ch;
+        bestCh = top.ch;
       }
     }
-
-    if (bestIdx < 0 || bestRange < 1) break;
+    if (bestIdx < 0 || bestRange < 8) break;
     const box = boxes[bestIdx]!;
-    const key = bestChannel === 0 ? 'r' : bestChannel === 1 ? 'g' : 'b';
+    const key = bestCh === 0 ? 'r' : bestCh === 1 ? 'g' : 'b';
     box.items.sort((a, b) => a[key] - b[key]);
     const mid = Math.floor(box.items.length / 2);
-    const left = box.items.slice(0, mid);
-    const right = box.items.slice(mid);
-    boxes.splice(bestIdx, 1, { items: left }, { items: right });
+    boxes.splice(bestIdx, 1, { items: box.items.slice(0, mid) }, { items: box.items.slice(mid) });
   }
 
   return boxes
     .map((box) => {
-      let wSum = 0;
       let r = 0,
         g = 0,
-        b = 0;
+        b = 0,
+        n = 0;
       for (const p of box.items) {
-        const w = p.weight;
-        wSum += w;
+        // Weight chromatic pixels more so black boxes don't win
+        const w = 1 + p.s / 40;
         r += p.r * w;
         g += p.g * w;
         b += p.b * w;
+        n += w;
       }
-      if (wSum <= 0) return null;
-      const rgb = {
-        r: Math.round(r / wSum),
-        g: Math.round(g / wSum),
-        b: Math.round(b / wSum),
-      };
-      return {
-        color: rgbToHsl(rgb.r, rgb.g, rgb.b),
-        count: box.items.length,
-        weight: wSum,
-      };
+      if (n <= 0) return null;
+      return rgbToHsl(Math.round(r / n), Math.round(g / n), Math.round(b / n));
     })
-    .filter((x): x is NonNullable<typeof x> => x !== null)
-    .sort((a, b) => b.weight - a.weight);
+    .filter((c): c is HSL => !!c)
+    .sort((a, b) => b.s - a.s);
 }
 
-/**
- * Find chromatic peak: average of high-sat pixels, weighted by sat².
- * Works when only a few % of cover is colored (logo, title, one instrument).
- */
-function chromaticPeak(pixels: PixelSample[]): { color: HSL; mass: number } | null {
-  let mass = 0;
-  let x = 0,
-    y = 0; // unit circle for hue
-  let sSum = 0,
-    lSum = 0;
-
+function isTrueMonochrome(pixels: Pix[]): boolean {
+  if (pixels.length === 0) return true;
+  let chrom = 0;
+  let maxRgbChroma = 0;
   for (const p of pixels) {
-    if (p.s < 6) continue;
-    // Soft-include dark reds (sat can read lower in HSL when L is low)
-    const darkBoost = p.l < 25 && p.s >= 4 ? 1.4 : 1;
-    const w = (p.s / 100) ** 2 * p.weight * darkBoost;
-    if (w <= 0) continue;
-    const rad = (p.h * Math.PI) / 180;
-    x += Math.cos(rad) * w;
-    y += Math.sin(rad) * w;
-    sSum += p.s * w;
-    lSum += p.l * w;
-    mass += w;
+    const rgbChroma = Math.max(p.r, p.g, p.b) - Math.min(p.r, p.g, p.b);
+    if (rgbChroma > maxRgbChroma) maxRgbChroma = rgbChroma;
+    // Count only meaningfully colored pixels (ignore noise)
+    if (rgbChroma >= 22 || p.s >= 12) chrom++;
   }
-
-  if (mass < 0.001) return null;
-  let h = (Math.atan2(y, x) * 180) / Math.PI;
-  if (h < 0) h += 360;
-  return {
-    color: {
-      h: Math.round(h) % 360,
-      s: Math.round(sSum / mass),
-      l: Math.round(lSum / mass),
-    },
-    mass,
-  };
+  const ratio = chrom / pixels.length;
+  // B&W line art: almost no chroma; max channel delta stays tiny
+  return ratio < 0.035 && maxRgbChroma < 40;
 }
 
-/**
- * Residual warm/cool cast for near-B&W art (film grain, print bias).
- * Uses average RGB delta — never invents a random accent hue.
- */
-function residualCast(pixels: PixelSample[]): HSL | null {
-  if (pixels.length === 0) return null;
-  let r = 0,
-    g = 0,
-    b = 0,
-    n = 0;
-  for (const p of pixels) {
-    // Prefer mid-tones; skip pure black/white for cast
-    if (p.l < 4 || p.l > 96) continue;
-    r += p.r;
-    g += p.g;
-    b += p.b;
-    n++;
-  }
-  if (n < 8) {
-    r = g = b = n = 0;
-    for (const p of pixels) {
-      r += p.r;
-      g += p.g;
-      b += p.b;
-      n++;
-    }
-  }
-  if (n === 0) return null;
-  r /= n;
-  g /= n;
-  b /= n;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const span = max - min;
-  const avgL = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-
-  // Truly neutral
-  if (span < 2.5) {
-    return { h: 0, s: 0, l: Math.round(avgL * 100) };
-  }
-
-  const hsl = rgbToHsl(Math.round(r), Math.round(g), Math.round(b));
-  // Amplify tiny cast into a usable UI tint (still subtle)
-  const amplifiedS = clamp(Math.max(hsl.s, span * 0.45), 4, 18);
-  return {
-    h: hsl.h,
-    s: Math.round(amplifiedS),
-    l: Math.round(clamp(hsl.l, 20, 70)),
-  };
-}
-
-function averageLuminance(pixels: PixelSample[]): number {
-  if (!pixels.length) return 12;
-  let s = 0;
-  for (const p of pixels) s += p.l;
-  return s / pixels.length;
-}
-
-/**
- * Merge external candidates (e.g. Color Thief) with our samples.
- * External HSL assumed 0–100 sat/light.
- */
-export function mergeExternalCandidates(
-  base: AlbumPaletteResult,
-  external: HSL[]
-): AlbumPaletteResult {
-  if (!external.length) return base;
-  const scored = [...base.palette];
-  for (const c of external) {
-    if (!c || !Number.isFinite(c.h)) continue;
-    scored.push({
-      h: ((Math.round(c.h) % 360) + 360) % 360,
-      s: clamp(Math.round(c.s), 0, 100),
-      l: clamp(Math.round(c.l), 0, 100),
-    });
-  }
-  // Re-pick primary: prefer highest usable chroma that isn't neon junk
-  let best = base.primary;
-  let bestScore = scoreCandidate(best, base.chromaticRatio);
-  for (const c of scored) {
-    const sc = scoreCandidate(c, base.chromaticRatio);
-    if (sc > bestScore) {
-      bestScore = sc;
-      best = c;
-    }
-  }
-  // Dedup palette
-  const palette = dedupePalette([best, ...scored, base.secondary], 10);
-  const secondary = palette.find((p) => hueDist(p.h, best.h) >= 28 && p.s >= 6) ?? best;
-  return {
-    ...base,
-    primary: best,
-    secondary,
-    palette,
-    source: best.s >= 6 ? base.source : base.source,
-  };
-}
-
-function scoreCandidate(c: HSL, chromaticRatio: number): number {
-  // Prefer real chroma; soft-penalize extreme neon and pure black/white
-  let score = c.s * 1.4;
-  if (c.l >= 12 && c.l <= 78) score += 18;
-  if (c.l < 8 || c.l > 92) score -= 20;
-  // Slight preference for warm earth tones common on rock covers (not a ban on blue)
-  if (c.h >= 10 && c.h <= 55 && c.s >= 8) score += 4;
-  if (c.h >= 185 && c.h <= 230 && c.s > 45) score -= 6; // only hot cyan-blue
-  // When art is mostly mono, small sat still wins over pure gray
-  if (chromaticRatio < 0.08 && c.s >= 3 && c.s <= 25) score += 12;
-  if (c.s < 2) score -= 30;
-  return score;
-}
-
-function dedupePalette(colors: HSL[], max: number): HSL[] {
-  const out: HSL[] = [];
-  for (const c of colors) {
-    if (out.some((e) => hueDist(e.h, c.h) < 18 && Math.abs(e.s - c.s) < 12)) continue;
-    out.push(c);
-    if (out.length >= max) break;
-  }
-  return out;
-}
-
-/**
- * Extract album palette from ImageData (unit-testable, no DOM Image needed).
- */
 export function extractAlbumPaletteFromImageData(imageData: ImageData): AlbumPaletteResult {
-  const pixels = collectPixels(imageData);
+  const pixels = collect(imageData);
   if (pixels.length === 0) {
     return {
       primary: { h: 0, s: 0, l: 12 },
@@ -345,117 +242,96 @@ export function extractAlbumPaletteFromImageData(imageData: ImageData): AlbumPal
       palette: [{ h: 0, s: 0, l: 12 }],
       isMonochrome: true,
       chromaticRatio: 0,
-      source: 'luminance',
+      source: 'empty',
     };
   }
 
-  const chromaticCount = pixels.filter((p) => p.s >= 8).length;
-  const chromaticRatio = chromaticCount / pixels.length;
-  const peak = chromaticPeak(pixels);
-  const quantized = quantize(pixels, 8);
-  const cast = residualCast(pixels);
-  const avgL = averageLuminance(pixels);
+  const mono = isTrueMonochrome(pixels);
+  const chromCount = pixels.filter((p) => {
+    const c = Math.max(p.r, p.g, p.b) - Math.min(p.r, p.g, p.b);
+    return c >= 18 || p.s >= 10;
+  }).length;
+  const chromaticRatio = chromCount / pixels.length;
 
-  const quantColors = quantized.map((q) => q.color);
-  const mono = chromaticRatio < 0.06 && (!peak || peak.color.s < 10);
+  if (mono) {
+    // Honest greys from average luminance — no warm beige cast
+    let lSum = 0;
+    for (const p of pixels) lSum += p.l;
+    const avgL = Math.round(lSum / pixels.length);
+    const primary = { h: 0, s: 0, l: clamp(avgL, 6, 40) };
+    return {
+      primary,
+      secondary: primary,
+      palette: [primary],
+      isMonochrome: true,
+      chromaticRatio,
+      source: 'monochrome',
+    };
+  }
+
+  const peak = findVividPeak(pixels);
+  const quantized = quantize(pixels, 6);
 
   let primary: HSL;
   let source: AlbumPaletteResult['source'];
 
-  if (peak && peak.color.s >= 8 && peak.mass > 0.02) {
+  if (peak && peak.color.s >= 12) {
     primary = peak.color;
-    source = 'chromatic-peak';
-  } else if (quantColors.some((c) => c.s >= 6)) {
-    primary = quantColors.find((c) => c.s >= 6)!;
-    // Prefer highest sat among quantized
-    for (const c of quantColors) {
-      if (c.s > primary.s && c.l >= 8 && c.l <= 90) primary = c;
+    source = 'vivid-peak';
+    // Boost whisper-chroma so dark reds stay red (not brown) in theme builder
+    if (primary.s < 35) {
+      primary = { ...primary, s: clamp(Math.round(primary.s * 1.45), primary.s, 55) };
     }
+  } else if (quantized.some((c) => c.s >= 12)) {
+    primary = quantized.reduce((a, b) => (b.s > a.s ? b : a));
     source = 'quantized';
-  } else if (cast && cast.s >= 3) {
-    primary = cast;
-    source = 'residual-cast';
-  } else if (cast) {
-    primary = { h: cast.h, s: cast.s, l: cast.l };
-    source = 'residual-cast';
+    if (primary.s < 35) {
+      primary = { ...primary, s: clamp(Math.round(primary.s * 1.4), primary.s, 55) };
+    }
   } else {
-    primary = { h: 0, s: 0, l: Math.round(clamp(avgL, 8, 40)) };
-    source = 'luminance';
+    // Weak color only — still use it, but mark near-mono
+    primary = peak?.color ?? quantized[0] ?? { h: 0, s: 0, l: 12 };
+    source = peak ? 'vivid-peak' : 'quantized';
   }
 
-  // Soft-boost very low but real chroma so UI roles have a tint to work with
-  if (primary.s > 0 && primary.s < 12 && !mono) {
-    primary = { ...primary, s: clamp(primary.s * 1.6, primary.s, 18) };
-  }
-  if (mono && primary.s >= 2 && primary.s < 10) {
-    primary = { ...primary, s: clamp(Math.max(primary.s, 8), 6, 14) };
-  }
+  // Ensure L is usable for accent derivation (not stuck at pure black)
+  primary = {
+    h: ((primary.h % 360) + 360) % 360,
+    s: clamp(primary.s, 0, 100),
+    l: clamp(primary.l, 22, 70),
+  };
 
-  const palette = dedupePalette(
-    [
-      primary,
-      ...quantColors,
-      ...(peak ? [peak.color] : []),
-      ...(cast ? [cast] : []),
-    ],
-    10
-  );
-  const secondary =
-    palette.find((p) => hueDist(p.h, primary.h) >= 28 && p.s >= 5) ??
-    palette[1] ??
-    primary;
+  const palette = [primary, ...quantized.filter((c) => hueDist(c.h, primary.h) >= 25)].slice(0, 8);
+  const secondary = palette[1] ?? primary;
 
   return {
     primary,
     secondary,
     palette,
-    isMonochrome: mono,
+    isMonochrome: false,
     chromaticRatio,
     source,
   };
 }
 
-/**
- * Extract from a loaded HTMLImageElement (browser).
- */
-export function extractAlbumPaletteFromImage(
-  img: HTMLImageElement,
-  external?: HSL[]
-): AlbumPaletteResult {
+export function extractAlbumPaletteFromImage(img: HTMLImageElement): AlbumPaletteResult {
   const data = imageToSampleData(img, SAMPLE);
   if (!data) {
-    // No canvas — last resort neutral from external if any
-    if (external?.length) {
-      const best = external.reduce((a, b) => (b.s > a.s ? b : a));
-      return {
-        primary: best,
-        secondary: best,
-        palette: external.slice(0, 8),
-        isMonochrome: best.s < 8,
-        chromaticRatio: best.s >= 8 ? 0.2 : 0,
-        source: 'quantized',
-      };
-    }
     return {
       primary: { h: 0, s: 0, l: 12 },
       secondary: { h: 0, s: 0, l: 12 },
       palette: [{ h: 0, s: 0, l: 12 }],
       isMonochrome: true,
       chromaticRatio: 0,
-      source: 'luminance',
+      source: 'empty',
     };
   }
-  const base = extractAlbumPaletteFromImageData(data);
-  return external?.length ? mergeExternalCandidates(base, external) : base;
+  return extractAlbumPaletteFromImageData(data);
 }
 
-/** RGB helper for tests */
-export function rgb(r: number, g: number, b: number): RGB {
-  return { r, g, b };
-}
+// ---- test helpers ----
 
-/** Build solid ImageData for tests */
-export function solidImageData(width: number, height: number, color: RGB): ImageData {
+export function solidImageData(width: number, height: number, color: { r: number; g: number; b: number }): ImageData {
   const data = new Uint8ClampedArray(width * height * 4);
   for (let i = 0; i < width * height; i++) {
     data[i * 4] = color.r;
@@ -466,12 +342,11 @@ export function solidImageData(width: number, height: number, color: RGB): Image
   return new ImageData(data, width, height);
 }
 
-/** Build two-tone / logo-on-black ImageData for tests */
 export function twoToneImageData(
   width: number,
   height: number,
-  bg: RGB,
-  fg: RGB,
+  bg: { r: number; g: number; b: number },
+  fg: { r: number; g: number; b: number },
   fgRatio: number
 ): ImageData {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -484,4 +359,8 @@ export function twoToneImageData(
     data[i * 4 + 3] = 255;
   }
   return new ImageData(data, width, height);
+}
+
+export function rgb(r: number, g: number, b: number) {
+  return { r, g, b };
 }

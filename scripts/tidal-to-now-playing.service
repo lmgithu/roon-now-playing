@@ -1,0 +1,21 @@
+[Unit]
+Description=Tidal → Roon Now Playing bridge (Tidal Hi-Fi poller)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Prefer MODE=hifi (near real-time). Point HIFI_URL at the host running Tidal Hi-Fi.
+Environment=MODE=hifi
+Environment=HIFI_URL=http://127.0.0.1:47836
+Environment=DISPLAY_URL=http://192.168.1.60:3000
+# Change path/user if you install elsewhere on the Pi
+ExecStart=/home/pi/tidal-to-now-playing.sh
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

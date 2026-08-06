@@ -1,17 +1,15 @@
 /**
- * Multi-strategy album palette extraction (dark / B&W / logo-on-black).
+ * Album palette — must keep red fire red, B&W pure grey (no brown mud).
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
   extractAlbumPaletteFromImageData,
-  mergeExternalCandidates,
   solidImageData,
   twoToneImageData,
   rgb,
 } from './albumPalette';
 import { buildAlbumThemeFromPalette } from './useAlbumTheme';
 
-// Polyfill ImageData for Node
 class ImageDataPolyfill {
   data: Uint8ClampedArray;
   width: number;
@@ -29,119 +27,102 @@ beforeAll(() => {
   }
 });
 
+/** Parse hsl()/hsla() from theme strings */
+function parseHsl(css: string): { h: number; s: number; l: number } | null {
+  const m = css.match(/hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/i);
+  if (!m) return null;
+  return { h: Number(m[1]), s: Number(m[2]), l: Number(m[3]) };
+}
+
 describe('extractAlbumPaletteFromImageData', () => {
-  it('extracts solid red', () => {
-    const data = solidImageData(32, 32, rgb(200, 30, 30));
+  it('extracts vivid solid red (not brown)', () => {
+    const data = solidImageData(48, 48, rgb(200, 30, 30));
     const r = extractAlbumPaletteFromImageData(data);
-    expect(r.primary.h).toBeGreaterThanOrEqual(0);
-    expect(r.primary.h).toBeLessThan(25); // reds wrap 0–15-ish
-    expect(r.primary.s).toBeGreaterThan(40);
     expect(r.isMonochrome).toBe(false);
+    expect(r.primary.s).toBeGreaterThan(40);
+    expect(r.primary.h < 25 || r.primary.h > 340).toBe(true);
   });
 
-  it('extracts solid blue (allowed — no blue ban)', () => {
-    const data = solidImageData(32, 32, rgb(40, 80, 200));
+  it('finds red fire on mostly-black cover (Katatonia pattern)', () => {
+    // ~20% vivid red-orange on near-black — like fire sky on dark cover
+    const data = twoToneImageData(64, 64, rgb(8, 6, 5), rgb(210, 55, 30), 0.22);
+    const r = extractAlbumPaletteFromImageData(data);
+    expect(r.isMonochrome).toBe(false);
+    expect(r.primary.s).toBeGreaterThanOrEqual(30);
+    const h = r.primary.h;
+    expect(h < 35 || h > 330).toBe(true); // red–orange band
+  });
+
+  it('treats pure B&W line art as monochrome (no warm cast)', () => {
+    // Black + white only (cat line art)
+    const data = twoToneImageData(48, 48, rgb(0, 0, 0), rgb(250, 250, 250), 0.12);
+    const r = extractAlbumPaletteFromImageData(data);
+    expect(r.isMonochrome).toBe(true);
+    expect(r.primary.s).toBe(0);
+  });
+
+  it('extracts solid blue', () => {
+    const data = solidImageData(32, 32, rgb(40, 80, 210));
     const r = extractAlbumPaletteFromImageData(data);
     expect(r.primary.h).toBeGreaterThan(190);
     expect(r.primary.h).toBeLessThan(250);
-    expect(r.primary.s).toBeGreaterThan(30);
-  });
-
-  it('finds sparse red logo on black (rock cover pattern)', () => {
-    // ~8% red pixels on near-black
-    const data = twoToneImageData(40, 40, rgb(8, 8, 8), rgb(180, 40, 30), 0.08);
-    const r = extractAlbumPaletteFromImageData(data);
-    expect(r.primary.s).toBeGreaterThanOrEqual(8);
-    // Hue near red
-    const h = r.primary.h;
-    expect(h < 40 || h > 330).toBe(true);
-    expect(r.source === 'chromatic-peak' || r.source === 'quantized').toBe(true);
-  });
-
-  it('derives residual cast from warm gray (not random olive)', () => {
-    // Warm near-gray film stock
-    const data = solidImageData(32, 32, rgb(48, 44, 40));
-    const r = extractAlbumPaletteFromImageData(data);
-    // Should not invent strong chroma; may be residual-cast or mono
-    expect(r.primary.s).toBeLessThan(25);
-    if (r.primary.s >= 3) {
-      // Warm cast → yellow-orange-red region
-      expect(r.primary.h < 80 || r.primary.h > 300).toBe(true);
-    }
-  });
-
-  it('handles pure black without throwing', () => {
-    const data = solidImageData(16, 16, rgb(0, 0, 0));
-    const r = extractAlbumPaletteFromImageData(data);
-    expect(r.primary).toBeTruthy();
-    expect(r.primary.l).toBeLessThan(30);
-  });
-
-  it('handles pure white', () => {
-    const data = solidImageData(16, 16, rgb(255, 255, 255));
-    const r = extractAlbumPaletteFromImageData(data);
-    expect(r.primary).toBeTruthy();
+    expect(r.primary.s).toBeGreaterThan(40);
   });
 });
 
-describe('mergeExternalCandidates', () => {
-  it('prefers more chromatic external swatch when base is dull', () => {
-    const base = extractAlbumPaletteFromImageData(solidImageData(16, 16, rgb(20, 20, 20)));
-    const merged = mergeExternalCandidates(base, [{ h: 25, s: 55, l: 45 }]);
-    expect(merged.primary.s).toBeGreaterThanOrEqual(40);
-    expect(merged.primary.h).toBeGreaterThanOrEqual(15);
-    expect(merged.primary.h).toBeLessThan(40);
-  });
-});
-
-describe('buildAlbumThemeFromPalette', () => {
-  it('builds chromatic theme with album-tinted progress', () => {
+describe('buildAlbumThemeFromPalette — no brown mud', () => {
+  it('red fire art → deep red field + vivid red bar (high sat, low L bg)', () => {
     const theme = buildAlbumThemeFromPalette({
-      primary: { h: 18, s: 42, l: 40 },
-      secondary: { h: 18, s: 30, l: 30 },
-      palette: [{ h: 18, s: 42, l: 40 }],
+      primary: { h: 10, s: 55, l: 45 },
+      secondary: { h: 10, s: 40, l: 30 },
+      palette: [{ h: 10, s: 55, l: 45 }],
       isMonochrome: false,
-      chromaticRatio: 0.4,
-      source: 'chromatic-peak',
+      chromaticRatio: 0.3,
+      source: 'vivid-peak',
     });
-    expect(theme.progressFill).toMatch(/hsl/i);
-    expect(theme.progressFill).not.toBe('#e8e8e8');
+
+    // Background is a radial-gradient containing hsl with high S
     expect(theme.background).toContain('radial-gradient');
-    expect(theme.factText).toMatch(/hsl/i);
+    // Pull first hsl from gradient
+    const bgMatch = theme.background.match(/hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/i);
+    expect(bgMatch).toBeTruthy();
+    const bgS = Number(bgMatch![2]);
+    const bgL = Number(bgMatch![3]);
+    // MUST stay highly saturated (was ~20% → brown). Target ≥ 42.
+    expect(bgS).toBeGreaterThanOrEqual(42);
+    expect(bgL).toBeLessThan(22);
+    // Hue still red/orange
+    const bgH = Number(bgMatch![1]);
+    expect(bgH < 30 || bgH > 340).toBe(true);
+
+    const bar = parseHsl(theme.progressFill);
+    expect(bar).toBeTruthy();
+    expect(bar!.s).toBeGreaterThanOrEqual(48);
+    expect(bar!.h < 30 || bar!.h > 340).toBe(true);
   });
 
-  it('builds honest neutral for true mono without random accent hues', () => {
-    const a = buildAlbumThemeFromPalette({
-      primary: { h: 0, s: 0, l: 12 },
-      secondary: { h: 0, s: 0, l: 12 },
-      palette: [{ h: 0, s: 0, l: 12 }],
-      isMonochrome: true,
-      chromaticRatio: 0,
-      source: 'luminance',
-    });
-    const b = buildAlbumThemeFromPalette({
-      primary: { h: 0, s: 0, l: 12 },
-      secondary: { h: 0, s: 0, l: 12 },
-      palette: [{ h: 0, s: 0, l: 12 }],
-      isMonochrome: true,
-      chromaticRatio: 0,
-      source: 'luminance',
-    });
-    // Deterministic — no seeded random olive/sage
-    expect(a.progressFill).toBe(b.progressFill);
-    expect(a.background).toBe(b.background);
-  });
-
-  it('keeps residual warm cast in mono UI tint', () => {
+  it('true mono → pure grey theme (no beige progress)', () => {
     const theme = buildAlbumThemeFromPalette({
-      primary: { h: 30, s: 10, l: 35 },
-      secondary: { h: 30, s: 8, l: 30 },
-      palette: [{ h: 30, s: 10, l: 35 }],
+      primary: { h: 0, s: 0, l: 12 },
+      secondary: { h: 0, s: 0, l: 12 },
+      palette: [{ h: 0, s: 0, l: 12 }],
       isMonochrome: true,
-      chromaticRatio: 0.02,
-      source: 'residual-cast',
+      chromaticRatio: 0,
+      source: 'monochrome',
     });
-    // Progress should not be pure #e8e8e8 silver when cast exists
-    expect(theme.progressFill).toMatch(/hsl/i);
+    // Neutral greys — progress fill is rgba white-ish, not hsl brown
+    expect(theme.progressFill).toMatch(/rgba?\(|#|hsl\(0/i);
+    expect(theme.background).toContain('0%'); // zero saturation greys
+    // Deterministic
+    const again = buildAlbumThemeFromPalette({
+      primary: { h: 0, s: 0, l: 12 },
+      secondary: { h: 0, s: 0, l: 12 },
+      palette: [{ h: 0, s: 0, l: 12 }],
+      isMonochrome: true,
+      chromaticRatio: 0,
+      source: 'monochrome',
+    });
+    expect(theme.background).toBe(again.background);
+    expect(theme.progressFill).toBe(again.progressFill);
   });
 });

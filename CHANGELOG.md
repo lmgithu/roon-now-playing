@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.34] - 2026-08-06
+
+### Fixed
+
+- **Album ambient colors (critical):** stop crushing vivid art into brown mud. Extraction now finds the vivid hue peak (e.g. red fire on Katatonia) and builds an Apple/Plexamp-style dark field with **high saturation + low lightness**. True B&W covers stay pure greys (no warm beige). Removed Color Thief dependency.
+
 ## [2.0.33] - 2026-08-06
 
 ### Changed

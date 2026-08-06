@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@roon-screen-cover/shared": "workspace:*",
-    "colorthief": "^3.4.0",
     "qrcode": "^1.5.4",
     "vue": "^3.5.27",
     "vue-router": "^4.6.4"

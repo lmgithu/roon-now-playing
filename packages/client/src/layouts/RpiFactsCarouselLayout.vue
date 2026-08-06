@@ -2,7 +2,7 @@
 /**
  * RPi Facts Carousel — Facts-carousel hierarchy, Pi 3–safe / 10-foot TV rendering.
  *
- * Color system via useAlbumTheme (Color Thief → single album hue, staged by role).
+ * Color system via useAlbumTheme (vivid-peak extraction → Apple-style ambient hue).
  * Typography is TV-first: dock chrome scales with viewport; fact size is length-aware
  * so long AI quotes still fit while short ones stay grand.
  */
