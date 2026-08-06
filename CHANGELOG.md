@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.38] - 2026-08-06
+
+### Fixed
+
+- **CI:** restore simple single-job multi-arch Docker publish (proven for 2.0.34); global concurrency group so only one publish runs. App unchanged from blur-ambient 2.0.35.
+
 ## [2.0.37] - 2026-08-06
 
 ### Fixed
