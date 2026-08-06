@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.39] - 2026-08-06
+
+### Fixed
+
+- **CI:** restore exact Docker workflow from last green publish (v2.0.34). No matrix, no concurrency pile-up. App still blur ambient (2.0.35).
+
 ## [2.0.38] - 2026-08-06
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "roon-now-playing",
-  "version": "2.0.38",
+  "version": "2.0.39",
   "description": "Roon Now Playing Display - Real-time album artwork and track metadata for web clients",
   "private": true,
   "type": "module",
