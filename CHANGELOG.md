@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.37] - 2026-08-06
+
+### Fixed
+
+- **CI Docker publish:** multi-arch via separate amd64/arm64 jobs + manifest merge (fixes hosted-runner “not acquired” timeouts). Same app as 2.0.35/2.0.36 (blur ambient).
+
 ## [2.0.36] - 2026-08-06
 
 ### Changed
