@@ -55,10 +55,11 @@ watch(
 /**
  * Title/artist always light. Progress fill comes from backgroundStyle
  * (Colors → accent, Black → white).
+ * Bar ~1.5× thicker; times/zone larger for 10-ft TV balance.
  */
 const lightStatusChrome = {
-  '--progress-bar-height': '6px',
-  '--progress-time-size': 'clamp(14px, 1.5vw, 18px)',
+  '--progress-bar-height': '9px',
+  '--progress-time-size': 'clamp(16px, 1.85vw, 24px)',
   '--text-color': '#f1f1f3',
   '--text-secondary': 'rgba(255, 255, 255, 0.5)',
   '--text-tertiary': 'rgba(255, 255, 255, 0.38)',
@@ -288,9 +289,13 @@ const rootStyle = computed(() => ({
   margin-bottom: 2rem;
 }
 
-/* Typography - 10ft UI Scale, Title-first like Detailed */
+/*
+ * Ambient hierarchy on big TVs:
+ *   title/artist slightly restrained; zone + progress times more present.
+ */
 .title {
-  font-size: calc(var(--text-xl) * var(--font-scale, 1));
+  /* One step down from prior --text-xl for calmer hierarchy vs dock */
+  font-size: calc(var(--text-lg) * 1.05 * var(--font-scale, 1));
   font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
   margin: 0;
@@ -306,7 +311,7 @@ const rootStyle = computed(() => ({
 }
 
 .artist {
-  font-size: calc(var(--text-lg) * var(--font-scale, 1));
+  font-size: calc(var(--text-base) * 1.1 * var(--font-scale, 1));
   font-weight: var(--font-normal);
   line-height: var(--leading-snug);
   margin: 0;
@@ -337,14 +342,14 @@ const rootStyle = computed(() => ({
   margin-bottom: 2rem;
 }
 
-/* Zone Indicator */
+/* Zone Indicator — more weight so it balances the quieter title block */
 .zone-indicator {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   /* Always light — matches title/artist/album */
   color: var(--text-tertiary, rgba(245, 245, 245, 0.7));
-  font-size: calc(var(--text-sm) * var(--font-scale, 1));
+  font-size: calc(var(--text-base) * var(--font-scale, 1));
 }
 
 .zone-name {
@@ -448,22 +453,25 @@ const rootStyle = computed(() => ({
   }
 }
 
-/* Container Query Typography Scaling */
+/*
+ * Container scaling: title/artist one step calmer; zone steps up with width.
+ * Progress times inherit --progress-time-size (already TV-boosted above).
+ */
 @container layout (min-width: 500px) {
   .title {
-    font-size: calc(var(--text-2xl) * var(--font-scale, 1));
-  }
-
-  .artist {
     font-size: calc(var(--text-xl) * var(--font-scale, 1));
   }
 
-  .album {
+  .artist {
     font-size: calc(var(--text-lg) * var(--font-scale, 1));
   }
 
+  .album {
+    font-size: calc(var(--text-base) * 1.05 * var(--font-scale, 1));
+  }
+
   .zone-indicator {
-    font-size: calc(var(--text-base) * var(--font-scale, 1));
+    font-size: calc(var(--text-lg) * 0.95 * var(--font-scale, 1));
   }
 
   .no-playback-text {
@@ -477,15 +485,19 @@ const rootStyle = computed(() => ({
 
 @container layout (min-width: 700px) {
   .title {
-    font-size: calc(var(--text-3xl) * var(--font-scale, 1));
-  }
-
-  .artist {
     font-size: calc(var(--text-2xl) * var(--font-scale, 1));
   }
 
-  .album {
+  .artist {
     font-size: calc(var(--text-xl) * var(--font-scale, 1));
+  }
+
+  .album {
+    font-size: calc(var(--text-lg) * var(--font-scale, 1));
+  }
+
+  .zone-indicator {
+    font-size: calc(var(--text-lg) * var(--font-scale, 1));
   }
 
   .no-playback-text {
@@ -499,15 +511,20 @@ const rootStyle = computed(() => ({
 
 @container layout (min-width: 1000px) {
   .title {
-    font-size: calc(var(--text-4xl) * var(--font-scale, 1));
-  }
-
-  .artist {
+    /* Was --text-4xl; one step down so progress/zone can breathe */
     font-size: calc(var(--text-3xl) * var(--font-scale, 1));
   }
 
-  .album {
+  .artist {
     font-size: calc(var(--text-2xl) * var(--font-scale, 1));
+  }
+
+  .album {
+    font-size: calc(var(--text-xl) * var(--font-scale, 1));
+  }
+
+  .zone-indicator {
+    font-size: calc(var(--text-xl) * 0.95 * var(--font-scale, 1));
   }
 
   .no-playback-text {
@@ -516,6 +533,21 @@ const rootStyle = computed(() => ({
 
   .zone-hint {
     font-size: calc(var(--text-3xl) * var(--font-scale, 1));
+  }
+}
+
+/* C1-class / living-room: keep title calm; lift dock chrome further */
+@container layout (min-width: 1600px) {
+  .title {
+    font-size: calc(var(--text-3xl) * 1.05 * var(--font-scale, 1));
+  }
+
+  .artist {
+    font-size: calc(var(--text-2xl) * 1.02 * var(--font-scale, 1));
+  }
+
+  .zone-indicator {
+    font-size: calc(var(--text-xl) * var(--font-scale, 1));
   }
 }
 </style>

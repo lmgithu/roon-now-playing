@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.50] - 2026-08-07
+
+### Changed
+
+- **RPi Facts Carousel dock:** progress bar ~1.5× taller; title/artist and zone/time type larger for C1-class TVs, with cover sized so the dock stays balanced against facts.
+- **Ambient:** title/artist slightly calmer; zone + progress times larger; progress bar ~1.5× thicker for a more even hierarchy on big screens.
+
 ## [2.0.49] - 2026-08-07
 
 ### Changed

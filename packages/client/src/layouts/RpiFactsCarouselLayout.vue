@@ -463,15 +463,19 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: clamp(0.4rem, 0.9cqb, 0.75rem);
+  /* Slightly more air so larger dock type doesn’t crowd the cover */
+  gap: clamp(0.45rem, 1cqb, 0.9rem);
 }
 
 .np-line {
   display: flex;
   align-items: baseline;
   gap: 0.4em;
-  /* Dedicated dock type — larger ceiling than generic --fluid-subtitle for TV */
-  font-size: calc(clamp(1.05rem, 1.75cqi, 2.65rem) * var(--font-scale, 1));
+  /*
+   * Dock type (title · artist) — ~+15–20% vs prior so C1-class TVs read
+   * clearly from the sofa; still secondary to facts and balanced with cover.
+   */
+  font-size: calc(clamp(1.2rem, 2cqi, 3rem) * var(--font-scale, 1));
   white-space: nowrap;
   overflow: hidden;
 }
@@ -495,8 +499,8 @@ onUnmounted(() => {
 }
 
 .progress-line {
-  /* Visible from the sofa without looking chunky on laptops */
-  height: clamp(4px, 0.38cqi, 8px);
+  /* ~1.5× prior height — sofa-readable without overpowering the cover */
+  height: clamp(6px, 0.57cqi, 12px);
   /* Homogeneous track — prominent enough to read on album-colored fields */
   background: var(--rpi-progress-track, rgba(245, 245, 245, 0.4));
   border-radius: 999px;
@@ -551,7 +555,8 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  font-size: calc(clamp(0.85rem, 1.15cqi, 1.85rem) * var(--font-scale, 1));
+  /* Zone / source / time — scaled with dock (~+15–20%) */
+  font-size: calc(clamp(1rem, 1.35cqi, 2.15rem) * var(--font-scale, 1));
   color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
@@ -601,7 +606,7 @@ onUnmounted(() => {
   color: var(--rpi-meta, rgba(245, 245, 245, 0.7));
 }
 
-/* Large living-room panels (C1-class): boost dock; keep fact steps gentle */
+/* Large living-room panels (C1-class): boost dock with cover; keep fact steps gentle */
 @container layout (min-width: 1600px) {
   .fact-text.fact-short {
     --rpi-fact-size: clamp(1.55rem, min(3.35cqi, 6cqb), 5.2rem);
@@ -617,16 +622,21 @@ onUnmounted(() => {
   }
 
   .cover-wrap {
-    width: clamp(120px, 9.5cqi, 260px);
-    height: clamp(120px, 9.5cqi, 260px);
+    /* Slightly larger cover so dock type increase stays balanced */
+    width: clamp(132px, 10.2cqi, 280px);
+    height: clamp(132px, 10.2cqi, 280px);
   }
 
   .np-line {
-    font-size: calc(clamp(1.2rem, 1.55cqi, 2.75rem) * var(--font-scale, 1));
+    font-size: calc(clamp(1.35rem, 1.85cqi, 3.15rem) * var(--font-scale, 1));
   }
 
   .np-meta {
-    font-size: calc(clamp(0.95rem, 1.05cqi, 1.9rem) * var(--font-scale, 1));
+    font-size: calc(clamp(1.1rem, 1.25cqi, 2.25rem) * var(--font-scale, 1));
+  }
+
+  .progress-line {
+    height: clamp(7px, 0.62cqi, 13px);
   }
 }
 
@@ -642,8 +652,20 @@ onUnmounted(() => {
   }
 
   .cover-wrap {
-    width: clamp(160px, 8cqi, 280px);
-    height: clamp(160px, 8cqi, 280px);
+    width: clamp(176px, 8.5cqi, 300px);
+    height: clamp(176px, 8.5cqi, 300px);
+  }
+
+  .np-line {
+    font-size: calc(clamp(1.45rem, 1.7cqi, 3.35rem) * var(--font-scale, 1));
+  }
+
+  .np-meta {
+    font-size: calc(clamp(1.2rem, 1.15cqi, 2.4rem) * var(--font-scale, 1));
+  }
+
+  .progress-line {
+    height: clamp(8px, 0.55cqi, 14px);
   }
 }
 
