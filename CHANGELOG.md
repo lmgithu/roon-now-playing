@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.40] - 2026-08-07
+
+### Fixed
+
+- **Pale covers only:** if average cover luminance ≥ 0.58, slightly dim the blur (`brightness(0.72)`) and use a stronger scrim. All other art keeps the exact 2.0.39 filters and scrim (no color pipeline changes).
+
 ## [2.0.39] - 2026-08-06
 
 ### Fixed
