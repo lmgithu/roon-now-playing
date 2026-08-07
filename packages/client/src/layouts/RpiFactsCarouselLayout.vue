@@ -2,7 +2,7 @@
 /**
  * RPi Facts Carousel — Facts-carousel hierarchy, Pi 3–safe / 10-foot TV rendering.
  *
- * Ambient field: blurred album art (Apple/Plexamp) via DynamicBackground + gradient-simple.
+ * Ambient field: Grainy Blur via DynamicBackground; Radial / Black via useBackgroundStyle.
  * Chrome (progress/dots/text): conservative mid-tone accents from useAlbumTheme.
  * Typography is TV-first: dock chrome scales with viewport; fact size is length-aware.
  */
@@ -31,7 +31,7 @@ const stateRef = computed(() => props.state);
 
 const { facts, currentFactIndex, currentFact, isLoading, error } = useFacts(trackRef, stateRef);
 
-// Chrome only (progress/dots/text). Field = blurred art for gradient-simple.
+// Chrome only (progress/dots/text). Field = blur-grain or solid/radial styles.
 const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: trackRef,

@@ -2,8 +2,8 @@
 /**
  * Full-bleed background layers.
  *
- * gradient-simple / blur-grain: Apple/Plexamp path — blurred album art + dark scrim.
- * Other types: solid gradients / duotone handled by parent styles or gradient layer.
+ * blur-grain: heavily blurred album art + film grain + dark scrim.
+ * Radial / black fields are applied by the parent via useBackgroundStyle.
  */
 import { computed, ref, watch } from 'vue';
 import type { BackgroundType } from '@roon-screen-cover/shared';
@@ -93,41 +93,24 @@ watch(
 );
 
 /** Blurred cover as ambient field (Plexamp / Apple Music) */
-const needsArtworkBlur = computed(
-  () => props.type === 'blur-grain' || props.type === 'gradient-simple'
-);
+const needsArtworkBlur = computed(() => props.type === 'blur-grain');
 
 const needsNoise = computed(() => props.type === 'blur-grain');
 
 const needsScrim = computed(() => needsArtworkBlur.value);
 
-const needsGradientLayer = computed(
-  () => !needsArtworkBlur.value && props.type === 'gradient-radial-corner'
-);
+const needsGradientLayer = computed(() => false);
 
-const backgroundStyle = computed(() => {
-  const { center, edge } = props.vibrantGradient;
-  if (props.type === 'gradient-radial-corner') {
-    return {
-      background: `radial-gradient(ellipse at 0% 0%, ${center} 0%, ${edge} 100%)`,
-    };
-  }
-  return {};
-});
+const backgroundStyle = computed(() => ({}));
 
 /**
- * Default filters identical to 2.0.39.
- * Pale art only: slight brightness reduce — no sat changes, no effect on dark/colorful covers.
+ * Grainy Blur: heavy blur (+20% vs former 64px → ~77px) so artwork is less recognizable.
+ * Pale art only: slight brightness reduce.
  */
 const imageFilter = computed(() => {
-  let base = 'none';
-  if (props.type === 'blur-grain') {
-    base = 'blur(64px) saturate(1.08)';
-  } else if (props.type === 'gradient-simple') {
-    base = 'blur(72px) saturate(1.12)';
-  }
-  if (base === 'none') return base;
-  // Only pale covers: gentle dim so white blur doesn’t wash out facts
+  if (props.type !== 'blur-grain') return 'none';
+  // 64 * 1.2 ≈ 77
+  let base = 'blur(77px) saturate(1.08)';
   if (isPaleArt.value) {
     return `${base} brightness(0.72)`;
   }
@@ -150,7 +133,7 @@ const imageFilter = computed(() => {
       class="fallback-black"
     />
 
-    <!-- Blurred artwork ambient (gradient-simple + blur-grain) -->
+    <!-- Blurred artwork ambient (Grainy Blur) -->
     <template v-if="needsArtworkBlur && currentArtwork">
       <img
         v-if="previousArtwork && isTransitioning"

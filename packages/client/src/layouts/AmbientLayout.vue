@@ -22,8 +22,8 @@ const props = defineProps<{
 
 const backgroundRef = computed(() => props.background);
 const artworkUrlRef = computed(() => props.artworkUrl);
-const { colors, vibrantGradient, palette, isTransitioning } = useColorExtraction(artworkUrlRef);
-const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, vibrantGradient);
+const { vibrantGradient, palette, isTransitioning } = useColorExtraction(artworkUrlRef);
+const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, undefined, vibrantGradient);
 
 const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
@@ -71,33 +71,24 @@ const lightStatusChrome = {
   '--text-tertiary': 'rgba(245, 245, 245, 0.7)',
 } as const;
 
+/**
+ * Same field sources as other layouts:
+ * - blur-grain → DynamicBackground (blur + grain + scrim)
+ * - gradient-radial / black → useBackgroundStyle (vibrant radial / solid black)
+ * Light status chrome + album progress accents layered on top.
+ */
 const ambientStyle = computed(() => {
-  const baseVars = {
-    '--bg-color': colors.value.background,
-    '--bg-edge': colors.value.backgroundEdge,
-    '--shadow-color': colors.value.shadow,
-    ...lightStatusChrome,
-  };
-
-  // Blur ambient + DynamicBackground: light base, album chrome for progress tint
   if (usesDynamicBackground.value) {
     return {
-      ...baseVars,
       ...lightStatusChrome,
       ...albumChrome.value,
     };
   }
 
-  const baseStyle = { ...backgroundStyle.value };
-
-  if (props.background === 'gradient-radial' || props.background === 'dominant') {
-    baseStyle.background = `radial-gradient(ellipse 120% 100% at 30% 50%, ${colors.value.background} 0%, ${colors.value.backgroundEdge} 100%)`;
-  }
-
   return {
-    ...baseStyle,
-    ...baseVars,
+    ...backgroundStyle.value,
     ...lightStatusChrome,
+    ...albumChrome.value,
   };
 });
 

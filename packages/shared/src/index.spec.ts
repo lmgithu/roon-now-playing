@@ -249,28 +249,14 @@ describe('Facts Types', () => {
   });
 
   describe('BACKGROUNDS', () => {
-    it('should include the trimmed background set', () => {
-      expect(BACKGROUNDS).toEqual([
-        'black',
-        'dominant',
-        'gradient-simple',
-        'gradient-radial',
-        'gradient-linear',
-        'gradient-radial-corner',
-        'blur-grain',
-      ]);
+    it('should include only Black, Grainy Blur, Radial Gradient', () => {
+      expect(BACKGROUNDS).toEqual(['black', 'blur-grain', 'gradient-radial']);
     });
 
     it('should have display names for all background types', () => {
       for (const bg of BACKGROUNDS) {
         expect(BACKGROUND_CONFIG[bg]).toBeDefined();
         expect(BACKGROUND_CONFIG[bg].displayName).toBeTruthy();
-      }
-    });
-
-    it('should have category for all background types', () => {
-      for (const bg of BACKGROUNDS) {
-        expect(BACKGROUND_CONFIG[bg].category).toMatch(/^(basic|gradient|artwork)$/);
       }
     });
   });

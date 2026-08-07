@@ -123,7 +123,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       layout: options.layout?.value || 'rpi-facts-carousel',
       font: options.font?.value || 'system',
       // Match DEFAULT_BACKGROUND (Simple Gradient) — not black
-      background: options.background?.value || 'gradient-simple',
+      background: options.background?.value || 'blur-grain',
       zoneId: subscribedZoneId,
       zoneName: subscribedZoneName,
       userAgent: navigator.userAgent,

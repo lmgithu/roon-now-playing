@@ -8,12 +8,8 @@ export interface BackgroundStyleResult {
   needsColorExtraction: ComputedRef<boolean>;
 }
 
-/** Types that need DynamicBackground (blurred art ambient / special layers) */
-export const DYNAMIC_BACKGROUND_TYPES: readonly BackgroundType[] = [
-  'gradient-simple', // Apple/Plexamp: blurred cover + scrim
-  'gradient-radial-corner',
-  'blur-grain',
-] as const;
+/** Types that need DynamicBackground (blurred art + layers) */
+export const DYNAMIC_BACKGROUND_TYPES: readonly BackgroundType[] = ['blur-grain'] as const;
 
 /**
  * Composable for generating background styles based on background type
@@ -23,11 +19,7 @@ export function useBackgroundStyle(
   colors?: Ref<ExtractedColors>,
   vibrantGradient?: Ref<VibrantGradient>
 ): BackgroundStyleResult {
-  const needsColorExtraction = computed(() => {
-    return (
-      backgroundType.value !== 'black'
-    );
-  });
+  const needsColorExtraction = computed(() => backgroundType.value !== 'black');
 
   const lightProgressBar = {
     '--progress-bar-bg': 'rgba(255, 255, 255, 0.38)',
@@ -53,34 +45,6 @@ export function useBackgroundStyle(
           ...lightProgressBar,
         };
 
-      case 'dominant':
-        if (vibrantGradient?.value?.ready) {
-          return {
-            background: vibrantGradient.value.center,
-            '--text-color': vibrantGradient.value.text,
-            '--text-secondary': vibrantGradient.value.textSecondary,
-            '--text-tertiary': vibrantGradient.value.textTertiary,
-            ...progressBarForText(vibrantGradient.value.text),
-          };
-        }
-        return {
-          background: '#000000',
-          '--text-color': '#ffffff',
-          '--text-secondary': 'rgba(255, 255, 255, 0.8)',
-          '--text-tertiary': 'rgba(255, 255, 255, 0.6)',
-          ...lightProgressBar,
-        };
-
-      case 'gradient-simple':
-        // Field = blurred artwork in DynamicBackground; chrome from useAlbumTheme.
-        return {
-          background: 'transparent',
-          '--text-color': '#f5f5f5',
-          '--text-secondary': 'rgba(245, 245, 245, 0.82)',
-          '--text-tertiary': 'rgba(245, 245, 245, 0.7)',
-          ...lightProgressBar,
-        };
-
       case 'gradient-radial':
         if (vibrantGradient?.value?.ready) {
           return {
@@ -99,26 +63,8 @@ export function useBackgroundStyle(
           ...lightProgressBar,
         };
 
-      case 'gradient-linear':
-        if (vibrantGradient?.value?.ready) {
-          return {
-            background: `linear-gradient(135deg, ${vibrantGradient.value.center} 0%, ${vibrantGradient.value.edge} 100%)`,
-            '--text-color': vibrantGradient.value.text,
-            '--text-secondary': vibrantGradient.value.textSecondary,
-            '--text-tertiary': vibrantGradient.value.textTertiary,
-            ...progressBarForText(vibrantGradient.value.text),
-          };
-        }
-        return {
-          background: 'linear-gradient(135deg, #1a1a1a 0%, #000000 100%)',
-          '--text-color': '#ffffff',
-          '--text-secondary': 'rgba(255, 255, 255, 0.8)',
-          '--text-tertiary': 'rgba(255, 255, 255, 0.6)',
-          ...lightProgressBar,
-        };
-
-      case 'gradient-radial-corner':
       case 'blur-grain':
+        // Field = DynamicBackground blur; chrome from useAlbumTheme / light defaults
         if (vibrantGradient?.value?.ready) {
           return {
             background: 'transparent',

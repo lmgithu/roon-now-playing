@@ -1,8 +1,8 @@
 /**
  * Chrome theme only (progress, dots, text tint).
  *
- * Ambient FIELD is the blurred artwork (DynamicBackground / gradient-simple),
- * not a synthetic HSL radial — that was inventing gold/red bars on B&W covers.
+ * Ambient FIELD is usually Grainy Blur (DynamicBackground) or Radial Gradient
+ * (useBackgroundStyle). Chrome accents come from pre-blurred mid-tone sampling.
  *
  * Accents come from pre-blurred mid-tone sampling (albumPalette). Low-chroma
  * art → pure neutral greys. Never force high saturation.

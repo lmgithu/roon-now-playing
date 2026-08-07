@@ -356,7 +356,7 @@ test.describe('Screenshot Capture for PR Validation', () => {
     'rpi-facts-carousel',
   ];
 
-  const backgrounds = ['black', 'dominant', 'gradient-radial'];
+  const backgrounds = ['black', 'blur-grain', 'gradient-radial'];
 
   test.beforeAll(async () => {
     // Ensure screenshot directory exists
@@ -554,15 +554,7 @@ test.describe('Matrix', () => {
     : ALL_LAYOUTS;
 
   // Keep in sync with BACKGROUNDS in packages/shared/src/index.ts
-  const backgrounds = [
-    'black',
-    'dominant',
-    'gradient-simple',
-    'gradient-radial',
-    'gradient-linear',
-    'gradient-radial-corner',
-    'blur-grain',
-  ];
+  const backgrounds = ['black', 'blur-grain', 'gradient-radial'];
 
   for (const layout of layouts) {
     for (const background of backgrounds) {

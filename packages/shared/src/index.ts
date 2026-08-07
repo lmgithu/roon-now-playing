@@ -84,34 +84,22 @@ export const FONT_CONFIG: Record<FontType, { displayName: string; googleFont: st
   'work-sans': { displayName: 'Work Sans', googleFont: 'Work+Sans:wght@300;400;500;600;700' },
 };
 
-// Background options (trimmed for display UI)
+// Background options (flat list — no categories)
 export const BACKGROUNDS = [
   'black',
-  'dominant',
-  'gradient-simple',
-  'gradient-radial',
-  'gradient-linear',
-  'gradient-radial-corner',
   'blur-grain',
+  'gradient-radial',
 ] as const;
 export type BackgroundType = (typeof BACKGROUNDS)[number];
 
-/** Default: blurred album ambient (Apple/Plexamp-style) */
-export const DEFAULT_BACKGROUND: BackgroundType = 'gradient-simple';
+/** Default: blurred album ambient with grain */
+export const DEFAULT_BACKGROUND: BackgroundType = 'blur-grain';
 
-// Background category type
-export type BackgroundCategory = 'basic' | 'gradient' | 'artwork';
-
-// Background display names and categories
-export const BACKGROUND_CONFIG: Record<BackgroundType, { displayName: string; category: BackgroundCategory }> = {
-  'black': { displayName: 'Black', category: 'basic' },
-  'dominant': { displayName: 'Dominant Color', category: 'basic' },
-  /** Album single-hue radial (former RPi Facts Carousel default field) */
-  'gradient-simple': { displayName: 'Simple Gradient', category: 'gradient' },
-  'gradient-radial': { displayName: 'Radial Gradient', category: 'gradient' },
-  'gradient-linear': { displayName: 'Linear Gradient', category: 'gradient' },
-  'gradient-radial-corner': { displayName: 'Corner Gradient', category: 'gradient' },
-  'blur-grain': { displayName: 'Grainy Blur', category: 'artwork' },
+// Background display names
+export const BACKGROUND_CONFIG: Record<BackgroundType, { displayName: string }> = {
+  black: { displayName: 'Black' },
+  'blur-grain': { displayName: 'Grainy Blur' },
+  'gradient-radial': { displayName: 'Radial Gradient' },
 };
 
 // LLM Provider options

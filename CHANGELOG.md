@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.41] - 2026-08-07
+
+### Changed
+
+- **Backgrounds:** only **Black**, **Grainy Blur**, and **Radial Gradient** (flat list, no categories). Default is Grainy Blur.
+- **Grainy Blur:** blur radius +20% (64px → 77px) so cover is less recognizable.
+- **Ambient + Radial Gradient:** uses the same vibrant radial field as other layouts (no Ambient-only offset).
+
 ## [2.0.40] - 2026-08-07
 
 ### Fixed

@@ -1047,21 +1047,9 @@ onMounted(async () => {
                   class="setting-select"
                   @change="(e) => pushSetting(client.clientId, { background: (e.target as HTMLSelectElement).value as BackgroundType })"
                 >
-                  <optgroup label="Basic">
-                    <option v-for="b in BACKGROUNDS.filter(bg => BACKGROUND_CONFIG[bg].category === 'basic')" :key="b" :value="b">
-                      {{ getBackgroundDisplayName(b) }}
-                    </option>
-                  </optgroup>
-                  <optgroup label="Gradients">
-                    <option v-for="b in BACKGROUNDS.filter(bg => BACKGROUND_CONFIG[bg].category === 'gradient')" :key="b" :value="b">
-                      {{ getBackgroundDisplayName(b) }}
-                    </option>
-                  </optgroup>
-                  <optgroup label="Artwork">
-                    <option v-for="b in BACKGROUNDS.filter(bg => BACKGROUND_CONFIG[bg].category === 'artwork')" :key="b" :value="b">
-                      {{ getBackgroundDisplayName(b) }}
-                    </option>
-                  </optgroup>
+                  <option v-for="b in BACKGROUNDS" :key="b" :value="b">
+                    {{ getBackgroundDisplayName(b) }}
+                  </option>
                 </select>
               </div>
             </div>

@@ -128,13 +128,13 @@ describe('usePreferences', () => {
     expect(layout.value).toBe('ambient');
   });
 
-  it('should accept gradient-simple background from URL', () => {
-    window.history.replaceState({}, '', '/?background=gradient-simple');
+  it('should accept gradient-radial background from URL', () => {
+    window.history.replaceState({}, '', '/?background=gradient-radial');
 
     const { background, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(background.value).toBe('gradient-simple');
+    expect(background.value).toBe('gradient-radial');
   });
 
   it('should accept blur-grain background from URL', () => {
@@ -152,7 +152,7 @@ describe('usePreferences', () => {
     const { background, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(background.value).toBe('gradient-simple'); // Default
+    expect(background.value).toBe('blur-grain'); // Default
   });
 
   it('should save background types to localStorage', () => {
