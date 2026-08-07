@@ -96,7 +96,7 @@ export const DEFAULT_BACKGROUND: BackgroundType = 'colors';
 
 // Background display names
 export const BACKGROUND_CONFIG: Record<BackgroundType, { displayName: string }> = {
-  black: { displayName: 'Black' },
+  black: { displayName: 'Black & White' },
   colors: { displayName: 'Colors' },
 };
 

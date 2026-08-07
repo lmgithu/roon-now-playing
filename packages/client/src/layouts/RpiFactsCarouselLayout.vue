@@ -187,7 +187,11 @@ onUnmounted(() => {
 
 
 <template>
-  <div class="rpi-facts-carousel-layout" :style="layoutStyle">
+  <div
+    class="rpi-facts-carousel-layout"
+    :class="{ 'bg-black-white': background === 'black' }"
+    :style="layoutStyle"
+  >
     <div class="content">
       <div class="safe-zone">
         <!-- Fact (hero) -->
@@ -455,6 +459,12 @@ onUnmounted(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: filter 0.4s ease;
+}
+
+/* Black & White background: grayscale cover only (Colors keeps full color) */
+.bg-black-white .cover-art {
+  filter: grayscale(1);
 }
 
 .cover-placeholder {

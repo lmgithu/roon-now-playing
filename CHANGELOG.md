@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.52] - 2026-08-07
+
+### Changed
+
+- **Black & White:** renamed from “Black” in admin. When selected, album cover art is shown in **grayscale**; **Colors** keeps full-color art unchanged.
+
 ## [2.0.51] - 2026-08-07
 
 ### Changed

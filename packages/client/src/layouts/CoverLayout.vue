@@ -59,6 +59,7 @@ watch(
 const layoutClass = computed(() => ({
     "cover-layout": true,
     "dark-mode": isDarkMode.value,
+    "bg-black-white": props.background === "black",
 }));
 
 const rootStyle = computed(() => ({
@@ -142,12 +143,17 @@ const rootStyle = computed(() => ({
     border-radius: 4px;
     /* Light mode shadow */
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.18);
-    transition: opacity 0.4s ease-out;
+    transition: opacity 0.4s ease-out, filter 0.4s ease;
 }
 
 .dark-mode .artwork {
     /* Dark mode shadow - higher opacity */
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+/* Black & White background: grayscale cover only */
+.bg-black-white .artwork {
+    filter: grayscale(1);
 }
 
 .artwork-previous {

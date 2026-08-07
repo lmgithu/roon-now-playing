@@ -35,7 +35,11 @@ const rootStyle = computed(() => ({
 </script>
 
 <template>
-  <div class="fullscreen-layout" :style="rootStyle">
+  <div
+    class="fullscreen-layout"
+    :class="{ 'bg-black-white': background === 'black' }"
+    :style="rootStyle"
+  >
     <img
       v-if="artworkUrl"
       :src="artworkUrl"
@@ -67,6 +71,12 @@ const rootStyle = computed(() => ({
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transition: filter 0.4s ease;
+}
+
+/* Black & White background: grayscale cover only */
+.bg-black-white .artwork {
+  filter: grayscale(1);
 }
 
 .artwork-placeholder {

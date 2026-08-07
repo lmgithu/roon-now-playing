@@ -76,7 +76,10 @@ const rootStyle = computed(() => ({
 <template>
   <div
     class="ambient-layout"
-    :class="{ transitioning: isTransitioning }"
+    :class="{
+      transitioning: isTransitioning,
+      'bg-black-white': background === 'black',
+    }"
     :style="rootStyle"
   >
     <div class="safe-zone">
@@ -228,7 +231,12 @@ const rootStyle = computed(() => ({
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: opacity 0.5s ease-out;
+  transition: opacity 0.5s ease-out, filter 0.4s ease;
+}
+
+/* Black & White background: grayscale cover only (Colors keeps full color) */
+.bg-black-white .artwork {
+  filter: grayscale(1);
 }
 
 .artwork-previous {
