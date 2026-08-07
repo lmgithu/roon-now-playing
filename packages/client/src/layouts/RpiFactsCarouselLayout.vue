@@ -35,7 +35,7 @@ const stateRef = computed(() => props.state);
 
 const { facts, currentFactIndex, currentFact, isLoading, error } = useFacts(trackRef, stateRef);
 
-// Chrome only (progress/dots/text). Field = blur-grain or solid/radial styles.
+// Chrome only (progress/dots/text). Field = blur-grain, corner gradient, or black.
 const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: trackRef,
@@ -57,7 +57,7 @@ const layoutStyle = computed((): CSSProperties => {
     // Blur field lives in DynamicBackground; only chrome CSS vars here
     return { ...albumChrome.value };
   }
-  if (props.background === 'gradient-radial') {
+  if (props.background === 'gradient-radial-corner') {
     return {
       ...backgroundStyle.value,
       ...albumChrome.value,

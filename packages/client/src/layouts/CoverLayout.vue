@@ -71,7 +71,7 @@ const rootStyle = computed(() => {
   if (usesDynamicBackground.value) {
     return { ...albumChrome.value };
   }
-  if (props.background === 'gradient-radial') {
+  if (props.background === 'gradient-radial-corner') {
     return {
       ...(backgroundStyle.value || {}),
       ...albumChrome.value,

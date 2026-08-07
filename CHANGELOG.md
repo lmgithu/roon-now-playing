@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.43] - 2026-08-07
+
+### Changed
+
+- **Backgrounds:** Radial Gradient replaced by **Corner Gradient** (top-left radial wash, high-contrast chrome).
+- **Grainy Blur:** much heavier blur (~110px), deeper zoom (~184% scale), slight rotation so the cover is unrecognizable as abstract color.
+
 ## [2.0.42] - 2026-08-07
 
 ### Fixed

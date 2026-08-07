@@ -74,8 +74,8 @@ const lightStatusChrome = {
 /**
  * Same field sources as other layouts:
  * - blur-grain → DynamicBackground (blur + grain + scrim)
- * - gradient-radial / black → useBackgroundStyle (vibrant radial / solid black)
- * Light status chrome + album accents; radial forces high-contrast progress/dots.
+ * - corner gradient / black → useBackgroundStyle
+ * Light status chrome + album accents; corner gradient forces high-contrast chrome.
  */
 const ambientStyle = computed(() => {
   if (usesDynamicBackground.value) {
@@ -85,7 +85,7 @@ const ambientStyle = computed(() => {
     };
   }
 
-  if (props.background === 'gradient-radial') {
+  if (props.background === 'gradient-radial-corner') {
     return {
       ...backgroundStyle.value,
       ...lightStatusChrome,

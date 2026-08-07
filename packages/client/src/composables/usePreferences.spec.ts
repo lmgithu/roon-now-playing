@@ -128,13 +128,13 @@ describe('usePreferences', () => {
     expect(layout.value).toBe('ambient');
   });
 
-  it('should accept gradient-radial background from URL', () => {
-    window.history.replaceState({}, '', '/?background=gradient-radial');
+  it('should accept gradient-radial-corner background from URL', () => {
+    window.history.replaceState({}, '', '/?background=gradient-radial-corner');
 
     const { background, loadPreferences } = usePreferences();
     loadPreferences();
 
-    expect(background.value).toBe('gradient-radial');
+    expect(background.value).toBe('gradient-radial-corner');
   });
 
   it('should accept blur-grain background from URL', () => {
@@ -158,9 +158,9 @@ describe('usePreferences', () => {
   it('should save background types to localStorage', () => {
     const { saveBackgroundPreference, background } = usePreferences();
 
-    saveBackgroundPreference('gradient-radial');
+    saveBackgroundPreference('gradient-radial-corner');
 
-    expect(background.value).toBe('gradient-radial');
-    expect(localStorage.getItem('roon-screen-cover:background')).toBe('gradient-radial');
+    expect(background.value).toBe('gradient-radial-corner');
+    expect(localStorage.getItem('roon-screen-cover:background')).toBe('gradient-radial-corner');
   });
 });

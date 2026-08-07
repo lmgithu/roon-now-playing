@@ -15,8 +15,22 @@ function isValidFont(value: string | null): value is FontType {
   return value !== null && (FONTS as readonly string[]).includes(value);
 }
 
+/** Map removed background ids to a current one (e.g. center radial → corner). */
+function migrateBackground(value: string | null): BackgroundType | null {
+  if (!value) return null;
+  if ((BACKGROUNDS as readonly string[]).includes(value)) return value as BackgroundType;
+  // Former center radial → corner gradient
+  if (value === 'gradient-radial' || value === 'gradient-simple' || value === 'gradient-linear') {
+    return 'gradient-radial-corner';
+  }
+  if (value === 'dominant' || value === 'blur-subtle' || value === 'blur-heavy') {
+    return 'blur-grain';
+  }
+  return null;
+}
+
 function isValidBackground(value: string | null): value is BackgroundType {
-  return value !== null && (BACKGROUNDS as readonly string[]).includes(value);
+  return migrateBackground(value) !== null;
 }
 
 function isValidEnabledLayouts(value: string | null): LayoutType[] | null {
@@ -49,7 +63,7 @@ export function usePreferences() {
       zone: zoneParam,
       layout: isValidLayout(layoutParam) ? layoutParam : null,
       font: isValidFont(fontParam) ? fontParam : null,
-      background: isValidBackground(backgroundParam) ? backgroundParam : null,
+      background: migrateBackground(backgroundParam),
     };
   }
 
@@ -86,13 +100,14 @@ export function usePreferences() {
       }
     }
 
-    // Background: URL param > localStorage > default
+    // Background: URL param > localStorage > default (migrate removed ids)
     if (urlParams.background) {
       background.value = urlParams.background;
     } else {
       const stored = localStorage.getItem(STORAGE_KEY_BACKGROUND);
-      if (isValidBackground(stored)) {
-        background.value = stored;
+      const migrated = migrateBackground(stored);
+      if (migrated) {
+        background.value = migrated;
       }
     }
 

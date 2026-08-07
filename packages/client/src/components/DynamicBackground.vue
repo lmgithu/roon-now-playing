@@ -104,13 +104,13 @@ const needsGradientLayer = computed(() => false);
 const backgroundStyle = computed(() => ({}));
 
 /**
- * Grainy Blur: heavy blur (+20% vs former 64px → ~77px) so artwork is less recognizable.
+ * Grainy Blur: very heavy blur + scale/rotate so the cover is unrecognizable.
  * Pale art only: slight brightness reduce.
  */
 const imageFilter = computed(() => {
   if (props.type !== 'blur-grain') return 'none';
-  // 64 * 1.2 ≈ 77
-  let base = 'blur(77px) saturate(1.08)';
+  // Aggressive soft wash (was 77px) — abstract color field, not a soft photo
+  let base = 'blur(110px) saturate(1.12)';
   if (isPaleArt.value) {
     return `${base} brightness(0.72)`;
   }
@@ -195,16 +195,19 @@ const imageFilter = computed(() => {
   background: #050505;
 }
 
-/* Oversize + cover so blur doesn’t show hard edges */
+/*
+ * Deep zoom + slight rotation so edges/structure of the cover vanish.
+ * Large inset compensates for rotate without showing empty corners.
+ */
 .artwork-bg {
   position: absolute;
-  inset: -18%;
-  width: 136%;
-  height: 136%;
+  inset: -42%;
+  width: 184%;
+  height: 184%;
   object-fit: cover;
   object-position: center;
-  transform: translateZ(0);
-  will-change: opacity;
+  transform: rotate(-11deg) scale(1.08) translateZ(0);
+  will-change: opacity, transform;
 }
 
 .artwork-bg.fade-in {

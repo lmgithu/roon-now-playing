@@ -12,10 +12,10 @@ export interface BackgroundStyleResult {
 export const DYNAMIC_BACKGROUND_TYPES: readonly BackgroundType[] = ['blur-grain'] as const;
 
 /**
- * High-contrast chrome for monochromatic fields (radial gradient).
+ * High-contrast chrome for monochromatic color washes (corner gradient).
  * Soft album accents share the field hue and disappear into the wash.
  */
-export const RADIAL_HIGH_CONTRAST_CHROME: Record<string, string> = {
+export const GRADIENT_HIGH_CONTRAST_CHROME: Record<string, string> = {
   '--rpi-progress-fill': 'rgba(255, 255, 255, 0.95)',
   '--rpi-progress-track': 'rgba(255, 255, 255, 0.36)',
   '--rpi-dot': 'rgba(255, 255, 255, 0.4)',
@@ -23,6 +23,9 @@ export const RADIAL_HIGH_CONTRAST_CHROME: Record<string, string> = {
   '--progress-bar-fill': 'rgba(255, 255, 255, 0.95)',
   '--progress-bar-bg': 'rgba(255, 255, 255, 0.36)',
 };
+
+/** @deprecated alias — same as GRADIENT_HIGH_CONTRAST_CHROME */
+export const RADIAL_HIGH_CONTRAST_CHROME = GRADIENT_HIGH_CONTRAST_CHROME;
 
 /**
  * Composable for generating background styles based on background type
@@ -58,25 +61,25 @@ export function useBackgroundStyle(
           ...lightProgressBar,
         };
 
-      case 'gradient-radial':
-        // Always light chrome — field is a solid color wash; dark/mid accents vanish into it
+      case 'gradient-radial-corner':
+        // Corner radial from top-left; light chrome for contrast on color wash
         if (vibrantGradient?.value?.ready) {
           return {
-            background: `radial-gradient(ellipse 120% 100% at 50% 50%, ${vibrantGradient.value.center} 0%, ${vibrantGradient.value.edge} 100%)`,
+            background: `radial-gradient(ellipse 140% 120% at 0% 0%, ${vibrantGradient.value.center} 0%, ${vibrantGradient.value.edge} 72%, #000000 100%)`,
             '--text-color': '#f5f5f5',
             '--text-secondary': 'rgba(245, 245, 245, 0.85)',
             '--text-tertiary': 'rgba(245, 245, 245, 0.7)',
             ...lightProgressBar,
-            ...RADIAL_HIGH_CONTRAST_CHROME,
+            ...GRADIENT_HIGH_CONTRAST_CHROME,
           };
         }
         return {
-          background: 'radial-gradient(ellipse 120% 100% at 50% 50%, #1a1a1a 0%, #000000 100%)',
+          background: 'radial-gradient(ellipse 140% 120% at 0% 0%, #2a2a35 0%, #0a0a0c 72%, #000000 100%)',
           '--text-color': '#ffffff',
           '--text-secondary': 'rgba(255, 255, 255, 0.8)',
           '--text-tertiary': 'rgba(255, 255, 255, 0.6)',
           ...lightProgressBar,
-          ...RADIAL_HIGH_CONTRAST_CHROME,
+          ...GRADIENT_HIGH_CONTRAST_CHROME,
         };
 
       case 'blur-grain':
