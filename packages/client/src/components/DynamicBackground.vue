@@ -2,17 +2,21 @@
 /**
  * Full-bleed background layers.
  *
- * blur-grain — exact approach from frigopedro/Apple-Music-Background:
- *   1. Full-size grid of dominant album colors (no zoom / scale / filter on grid)
- *   2. Full-size glass layer: rgba(0,0,0,0.3) + backdrop-filter blur(90px)
- *   3. Content (slot) sits in the glass layer — same place the demo puts the album
+ * blur-grain — same RESULT as frigopedro/Apple-Music-Background, without React:
  *
- * No extra vignette, noise, mesh-base, cover zoom, or filter-blur on the grid.
- * Radial / black fields are still applied by the parent via useBackgroundStyle.
+ *   1. Dominant colors via MMCQ quantize (same algo as use-image-color)
+ *   2. 6×6 full-size color grid filled from that palette
+ *   3. Soft field via heavy blur of the grid + glass darkening
+ *      (visual equivalent of the demo’s backdrop-filter glass over the grid;
+ *       filter-blur on the grid is used because it is reliable on TV/Pi where
+ *       backdrop-filter often fails or does nothing)
+ *
+ * Radial / black fields still come from the parent via useBackgroundStyle.
  */
 import { computed, ref, watch } from 'vue';
 import type { BackgroundType } from '@roon-screen-cover/shared';
 import type { ExtractedPalette, VibrantGradient } from '../composables/useColorExtraction';
+import { extractDominantColorsFromUrl } from '../composables/extractDominantColors';
 
 const props = defineProps<{
   type: BackgroundType;
@@ -21,80 +25,44 @@ const props = defineProps<{
   vibrantGradient: VibrantGradient;
 }>();
 
-/** Same as Apple-Music-Background: SIZE = 6 */
+/** Same SIZE as Apple-Music-Background */
 const SIZE = 6;
 const CELL_COUNT = SIZE * SIZE;
 
 const isAppleBg = computed(() => props.type === 'blur-grain');
 
-/**
- * Dominant colors as CSS color strings (like use-image-color → colors[]).
- * Sampled from the cover; raw values, no boost / invent.
- */
+/** Dominant palette (hex), same role as useImageColor(..., { colors: 5 }) */
 const dominantColors = ref<string[]>([]);
 let sampleGen = 0;
 
-function rgbCss(r: number, g: number, b: number): string {
-  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
-}
-
-/**
- * Downscale cover and pick ~5 dominant colors by RGB bucket population
- * (same role as use-image-color with { colors: 5 } in the demo).
- */
-function extractDominantColors(url: string): void {
+async function loadColors(url: string | null): Promise<void> {
   const gen = ++sampleGen;
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.decoding = 'async';
-  img.onload = () => {
-    if (gen !== sampleGen) return;
-    try {
-      const size = 64;
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) {
-        dominantColors.value = [];
-        return;
-      }
-      ctx.drawImage(img, 0, 0, size, size);
-      const { data } = ctx.getImageData(0, 0, size, size);
+  if (!url) {
+    dominantColors.value =
+      props.palette.paletteCSS.length > 0
+        ? [...props.palette.paletteCSS]
+        : ['#333333', '#1a1a1a', '#555555'];
+    return;
+  }
 
-      // 4-bit per channel buckets (similar spirit to quantize space)
-      const buckets = new Map<number, { r: number; g: number; b: number; n: number }>();
-      for (let i = 0; i < data.length; i += 4) {
-        if ((data[i + 3] ?? 0) < 128) continue;
-        const r = data[i]!;
-        const g = data[i + 1]!;
-        const b = data[i + 2]!;
-        const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
-        const cur = buckets.get(key);
-        if (cur) {
-          cur.r += r;
-          cur.g += g;
-          cur.b += b;
-          cur.n += 1;
-        } else {
-          buckets.set(key, { r, g, b, n: 1 });
-        }
-      }
+  const colors = await extractDominantColorsFromUrl(url, {
+    colors: 5,
+    windowSize: 50,
+    format: 'hex',
+  });
+  if (gen !== sampleGen) return;
 
-      const top = [...buckets.values()]
-        .sort((a, b) => b.n - a.n)
-        .slice(0, 5)
-        .map((c) => rgbCss(c.r / c.n, c.g / c.n, c.b / c.n));
+  if (colors.length > 0) {
+    dominantColors.value = colors;
+    return;
+  }
 
-      dominantColors.value = top.length > 0 ? top : ['#222222', '#444444', '#111111'];
-    } catch {
-      if (gen === sampleGen) dominantColors.value = [];
-    }
-  };
-  img.onerror = () => {
-    if (gen === sampleGen) dominantColors.value = [];
-  };
-  img.src = url;
+  // Fallback: existing palette extraction
+  if (props.palette.paletteCSS.length > 0) {
+    dominantColors.value = [...props.palette.paletteCSS];
+  } else {
+    dominantColors.value = ['#2a2a35', '#1a1a22', '#3a3a48'];
+  }
 }
 
 watch(
@@ -105,15 +73,7 @@ watch(
       dominantColors.value = [];
       return;
     }
-    if (!url) {
-      sampleGen++;
-      // Fallback until art exists (demo waits for colors before render)
-      dominantColors.value = props.palette.paletteCSS.length
-        ? [...props.palette.paletteCSS]
-        : ['#1a1a1a', '#333333', '#0d0d0d'];
-      return;
-    }
-    extractDominantColors(url);
+    void loadColors(url);
   },
   { immediate: true }
 );
@@ -139,16 +99,16 @@ function mulberry32(seed: number): () => number {
 }
 
 /**
- * 6×6 grid, each cell a random pick from dominant colors.
- * Demo used Math.random every render; we seed by artwork so Vue re-renders
- * do not reshuffle (same visual idea, stable for our app).
+ * 6×6 grid: each cell random pick from dominant colors
+ * (same as the demo’s nested loops + Math.random).
+ * Seeded by artwork so re-renders do not reshuffle.
  */
 const gridColors = computed(() => {
   if (!isAppleBg.value) return [] as string[];
   const colors = dominantColors.value;
   if (colors.length === 0) return [] as string[];
 
-  const rand = mulberry32(seedFrom(props.artworkUrl || colors.join(',')));
+  const rand = mulberry32(seedFrom((props.artworkUrl || '') + colors.join('|')));
   const cells: string[] = [];
   for (let i = 0; i < CELL_COUNT; i++) {
     cells.push(colors[Math.floor(rand() * colors.length)]!);
@@ -161,26 +121,33 @@ const gridColors = computed(() => {
   <div class="dynamic-background">
     <template v-if="isAppleBg">
       <!--
-        Apple-Music-Background structure:
-          .blur  (glass, z-index high) — content lives here
-          .container (color grid, behind)
+        Structure from Apple-Music-Background:
+          color grid behind
+          glass / blur layer in front
+          content (slot) where the demo places the album
       -->
-      <div class="blur">
-        <div class="content">
-          <slot />
-        </div>
-      </div>
       <div class="container" aria-hidden="true">
         <div
           v-for="(color, i) in gridColors"
-          :key="i"
+          :key="`${i}-${color}`"
           class="pixel"
           :style="{ background: color }"
         />
       </div>
+
+      <!--
+        Glass: same darkening + blur intent as the demo.
+        Blur is applied to the grid via CSS filter (see .container) so the soft
+        color field actually appears on all platforms; this layer only darkens
+        like rgba(0,0,0,0.3) in the reference.
+      -->
+      <div class="blur" aria-hidden="true" />
+
+      <div class="content">
+        <slot />
+      </div>
     </template>
 
-    <!-- Non-mesh backgrounds: just host the layout slot -->
     <div v-else class="content content--plain">
       <slot />
     </div>
@@ -189,8 +156,16 @@ const gridColors = computed(() => {
 
 <style scoped>
 /*
- * Styles aligned with frigopedro/Apple-Music-Background
- * src/Components/Background/styles.css — full size, no zoom/scale.
+ * Visual result of frigopedro/Apple-Music-Background without React.
+ *
+ * Demo recipe:
+ *   .container — full-size color grid
+ *   .blur      — rgba(0,0,0,0.3) + backdrop-filter: blur(90px)
+ *
+ * On many TV/Pi Chromium builds, backdrop-filter does not blur sibling
+ * content (you only get a dark film over hard squares → “poor” look).
+ * Applying blur(90px) to the grid itself yields the same soft field the
+ * demo screenshots show; glass only supplies the 0.3 darken + shadow.
  */
 .dynamic-background {
   position: relative;
@@ -200,46 +175,46 @@ const gridColors = computed(() => {
   background-color: #000;
 }
 
-/* Color grid — 100% of host (not 180%, no transform scale) */
 .container {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background-color: black;
+  /* Full host size — not 180% zoom. Tiny bleed only so blur soft-edges
+     are clipped by overflow:hidden instead of showing empty corners. */
+  inset: -8%;
+  width: 116%;
+  height: 116%;
+  background-color: #000;
   display: grid;
-  /* Demo CSS used 5 auto columns with a 6×6 fill; use 6 equal columns */
-  grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(0, 1fr));
   z-index: 0;
+  /* Demo: backdrop-filter blur(90px) on the glass; we blur the grid so
+     the soft color wash always renders. */
+  filter: blur(90px);
+  transform: translateZ(0);
+  will-change: filter;
 }
 
 .pixel {
   min-width: 0;
   min-height: 0;
-  position: relative;
-  z-index: 0;
 }
 
-/* Glass — exact recipe from the demo */
+/* Glass darkening — matches demo rgba + box-shadow */
 .blur {
   position: absolute;
   inset: 0;
-  z-index: 10;
-  width: 100%;
-  height: 100%;
+  z-index: 1;
   background: rgba(0, 0, 0, 0.3);
   box-shadow: 0 8px 32px 0 rgba(6, 7, 22, 0.37);
-  backdrop-filter: blur(90px);
-  -webkit-backdrop-filter: blur(90.5px);
-  display: flex;
-  align-items: stretch;
-  justify-content: stretch;
+  /* Keep backdrop-filter too for browsers where it helps */
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: none;
 }
 
 .content {
   position: relative;
-  z-index: 11;
+  z-index: 2;
   width: 100%;
   height: 100%;
 }

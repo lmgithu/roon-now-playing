@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.47] - 2026-08-07
+
+### Fixed
+
+- **Grainy Blur:** real Apple-Music-Background quality without React — MMCQ `quantize` (same engine as `use-image-color`), 6×6 dominant-color grid, soft 90px field blur + glass darken. Fixes the poor “dark hard squares” look from naive color buckets + broken backdrop-filter alone.
+
 ## [2.0.46] - 2026-08-07
 
 ### Fixed
