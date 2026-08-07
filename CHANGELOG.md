@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.48] - 2026-08-07
+
+### Fixed
+
+- **Grainy Blur patchiness:** replaced the coarse 6×6 hard color grid (which stays blotchy on TV-sized screens after blur) with large overlapping soft orbs + one heavy blur pass so the field reads as a continuous Apple Music–style wash.
+
 ## [2.0.47] - 2026-08-07
 
 ### Fixed

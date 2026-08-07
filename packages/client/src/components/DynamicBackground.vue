@@ -2,16 +2,14 @@
 /**
  * Full-bleed background layers.
  *
- * blur-grain — same RESULT as frigopedro/Apple-Music-Background, without React:
- *
+ * blur-grain — Apple Music–style ambient field without React:
  *   1. Dominant colors via MMCQ quantize (same algo as use-image-color)
- *   2. 6×6 full-size color grid filled from that palette
- *   3. Soft field via heavy blur of the grid + glass darkening
- *      (visual equivalent of the demo’s backdrop-filter glass over the grid;
- *       filter-blur on the grid is used because it is reliable on TV/Pi where
- *       backdrop-filter often fails or does nothing)
+ *   2. Large overlapping soft orbs (not a coarse 6×6 checker grid)
+ *   3. Light glass darken for contrast under UI
  *
- * Radial / black fields still come from the parent via useBackgroundStyle.
+ * Why not a 6×6 grid alone? On 1080p/4K each cell is huge; blur(90px) cannot
+ * fully melt them → visible “patches”. Overlapping orbs + heavy blur merge into
+ * a continuous wash (what Apple Music looks like).
  */
 import { computed, ref, watch } from 'vue';
 import type { BackgroundType } from '@roon-screen-cover/shared';
@@ -25,13 +23,8 @@ const props = defineProps<{
   vibrantGradient: VibrantGradient;
 }>();
 
-/** Same SIZE as Apple-Music-Background */
-const SIZE = 6;
-const CELL_COUNT = SIZE * SIZE;
-
 const isAppleBg = computed(() => props.type === 'blur-grain');
 
-/** Dominant palette (hex), same role as useImageColor(..., { colors: 5 }) */
 const dominantColors = ref<string[]>([]);
 let sampleGen = 0;
 
@@ -57,7 +50,6 @@ async function loadColors(url: string | null): Promise<void> {
     return;
   }
 
-  // Fallback: existing palette extraction
   if (props.palette.paletteCSS.length > 0) {
     dominantColors.value = [...props.palette.paletteCSS];
   } else {
@@ -98,50 +90,66 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+export interface SoftOrb {
+  color: string;
+  /** center X % */
+  x: number;
+  /** center Y % */
+  y: number;
+  /** diameter as % of the larger viewport side (very large → soft merge) */
+  size: number;
+}
+
 /**
- * 6×6 grid: each cell random pick from dominant colors
- * (same as the demo’s nested loops + Math.random).
- * Seeded by artwork so re-renders do not reshuffle.
+ * Build large, heavily overlapping orbs from the dominant palette.
+ * Positions are deterministic per album so the field is stable.
  */
-const gridColors = computed(() => {
-  if (!isAppleBg.value) return [] as string[];
+const orbs = computed((): SoftOrb[] => {
+  if (!isAppleBg.value) return [];
   const colors = dominantColors.value;
-  if (colors.length === 0) return [] as string[];
+  if (colors.length === 0) return [];
 
   const rand = mulberry32(seedFrom((props.artworkUrl || '') + colors.join('|')));
-  const cells: string[] = [];
-  for (let i = 0; i < CELL_COUNT; i++) {
-    cells.push(colors[Math.floor(rand() * colors.length)]!);
+  const count = Math.max(6, colors.length * 2);
+  const out: SoftOrb[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const color = colors[i % colors.length]!;
+    // Spread centers; keep them on-canvas so the wash fills the screen
+    const x = 8 + rand() * 84;
+    const y = 8 + rand() * 84;
+    // Huge orbs (55–95% of host) so neighbors overlap heavily after blur
+    const size = 55 + rand() * 40;
+    out.push({ color, x, y, size });
   }
-  return cells;
+
+  return out;
 });
+
+/** Base fill from the first (usually most dominant) color */
+const baseColor = computed(() => dominantColors.value[0] || '#0a0a0c');
 </script>
 
 <template>
   <div class="dynamic-background">
     <template v-if="isAppleBg">
-      <!--
-        Structure from Apple-Music-Background:
-          color grid behind
-          glass / blur layer in front
-          content (slot) where the demo places the album
-      -->
-      <div class="container" aria-hidden="true">
+      <div class="color-field" :style="{ backgroundColor: baseColor }" aria-hidden="true">
         <div
-          v-for="(color, i) in gridColors"
-          :key="`${i}-${color}`"
-          class="pixel"
-          :style="{ background: color }"
+          v-for="(orb, i) in orbs"
+          :key="i"
+          class="orb"
+          :style="{
+            background: orb.color,
+            left: `${orb.x}%`,
+            top: `${orb.y}%`,
+            width: `${orb.size}%`,
+            height: `${orb.size}%`,
+          }"
         />
       </div>
 
-      <!--
-        Glass: same darkening + blur intent as the demo.
-        Blur is applied to the grid via CSS filter (see .container) so the soft
-        color field actually appears on all platforms; this layer only darkens
-        like rgba(0,0,0,0.3) in the reference.
-      -->
-      <div class="blur" aria-hidden="true" />
+      <!-- Glass darken (demo uses rgba(0,0,0,0.3)) -->
+      <div class="glass" aria-hidden="true" />
 
       <div class="content">
         <slot />
@@ -155,18 +163,6 @@ const gridColors = computed(() => {
 </template>
 
 <style scoped>
-/*
- * Visual result of frigopedro/Apple-Music-Background without React.
- *
- * Demo recipe:
- *   .container — full-size color grid
- *   .blur      — rgba(0,0,0,0.3) + backdrop-filter: blur(90px)
- *
- * On many TV/Pi Chromium builds, backdrop-filter does not blur sibling
- * content (you only get a dark film over hard squares → “poor” look).
- * Applying blur(90px) to the grid itself yields the same soft field the
- * demo screenshots show; glass only supplies the 0.3 darken + shadow.
- */
 .dynamic-background {
   position: relative;
   width: 100%;
@@ -175,41 +171,47 @@ const gridColors = computed(() => {
   background-color: #000;
 }
 
-.container {
+/*
+ * Soft color field: large overlapping circles + one strong blur pass.
+ * This melts into a continuous wash instead of a patchy grid.
+ */
+.color-field {
   position: absolute;
-  /* Full host size — not 180% zoom. Tiny bleed only so blur soft-edges
-     are clipped by overflow:hidden instead of showing empty corners. */
-  inset: -8%;
-  width: 116%;
-  height: 116%;
-  background-color: #000;
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  grid-template-rows: repeat(6, minmax(0, 1fr));
+  /* modest bleed so blur edges are clipped, not a “cover zoom” */
+  inset: -20%;
+  width: 140%;
+  height: 140%;
   z-index: 0;
-  /* Demo: backdrop-filter blur(90px) on the glass; we blur the grid so
-     the soft color wash always renders. */
-  filter: blur(90px);
+  filter: blur(100px) saturate(1.15);
   transform: translateZ(0);
   will-change: filter;
 }
 
-.pixel {
-  min-width: 0;
-  min-height: 0;
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  /* center the circle on (left, top) */
+  transform: translate(-50%, -50%);
+  opacity: 0.95;
+  /* mix colors where orbs overlap */
+  mix-blend-mode: plus-lighter;
 }
 
-/* Glass darkening — matches demo rgba + box-shadow */
-.blur {
+/* Fallback blend for browsers without plus-lighter */
+@supports not (mix-blend-mode: plus-lighter) {
+  .orb {
+    mix-blend-mode: screen;
+    opacity: 0.85;
+  }
+}
+
+.glass {
   position: absolute;
   inset: 0;
   z-index: 1;
+  pointer-events: none;
   background: rgba(0, 0, 0, 0.3);
   box-shadow: 0 8px 32px 0 rgba(6, 7, 22, 0.37);
-  /* Keep backdrop-filter too for browsers where it helps */
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  pointer-events: none;
 }
 
 .content {
