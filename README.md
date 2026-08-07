@@ -127,25 +127,24 @@ Customize the background using the `?background=` URL parameter or via Admin UI:
 ### Gradients
 | Background | Description |
 |------------|-------------|
-| `gradient-radial` | Radial gradient emanating from center using artwork colors |
-| `gradient-linear` | Diagonal linear gradient (135°) using artwork colors |
-| `gradient-linear-multi` | Multi-color linear gradient using full color palette |
-| `gradient-radial-corner` | Radial gradient from corner using palette colors |
-| `gradient-mesh` | CSS mesh gradient with colors at corners |
+| `gradient-radial` | Center radial gradient using artwork colors |
+| `gradient-linear` | Diagonal linear gradient (135°) using artwork colors (legacy) |
+| `gradient-linear-multi` | Multi-color linear gradient using full color palette (legacy) |
+| `gradient-mesh` | CSS mesh gradient with colors at corners (legacy) |
 
 ### Artwork-Based
 | Background | Description |
 |------------|-------------|
-| `blur-subtle` | Softly blurred album artwork (20px blur) |
-| `blur-heavy` | Heavily blurred album artwork (50px blur) |
-| `duotone` | Album artwork with two-color duotone effect |
-| `posterized` | Album artwork with reduced color posterization |
+| `blur-subtle` | Softly blurred album artwork (20px blur) (legacy) |
+| `blur-heavy` | Heavily blurred album artwork (50px blur) (legacy) |
+| `duotone` | Album artwork with two-color duotone effect (legacy) |
+| `posterized` | Album artwork with reduced color posterization (legacy) |
 
 ### Textured
 | Background | Description |
 |------------|-------------|
-| `gradient-noise` | Gradient with subtle noise texture overlay |
-| `blur-grain` | Blurred artwork with film grain effect |
+| `gradient-noise` | Gradient with subtle noise texture overlay (legacy) |
+| `blur-grain` | Apple Music–style color mesh from dominant palette + glass blur + grain |
 
 **Note:** The `minimal` layout ignores background settings since the artwork covers the entire screen.
 

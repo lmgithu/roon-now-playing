@@ -6,7 +6,11 @@ import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import ProgressBar from '../components/ProgressBar.vue';
 import DynamicBackground from '../components/DynamicBackground.vue';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
-import { DYNAMIC_BACKGROUND_TYPES, RADIAL_HIGH_CONTRAST_CHROME } from '../composables/useBackgroundStyle';
+import {
+  DYNAMIC_BACKGROUND_TYPES,
+  RADIAL_HIGH_CONTRAST_CHROME,
+  BLUR_LIGHT_TEXT,
+} from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
   track: Track | null;
@@ -73,19 +77,21 @@ const lightStatusChrome = {
 
 /**
  * Same field sources as other layouts:
- * - blur-grain → DynamicBackground (blur + grain + scrim)
- * - corner gradient / black → useBackgroundStyle
- * Light status chrome + album accents; corner gradient forces high-contrast chrome.
+ * - blur-grain → DynamicBackground (Apple Music color mesh + glass)
+ * - radial / black → useBackgroundStyle
+ * Light status chrome; mesh + radial force high-contrast light text.
  */
 const ambientStyle = computed(() => {
   if (usesDynamicBackground.value) {
     return {
       ...lightStatusChrome,
       ...albumChrome.value,
+      ...BLUR_LIGHT_TEXT,
+      ...RADIAL_HIGH_CONTRAST_CHROME,
     };
   }
 
-  if (props.background === 'gradient-radial-corner') {
+  if (props.background === 'gradient-radial') {
     return {
       ...backgroundStyle.value,
       ...lightStatusChrome,

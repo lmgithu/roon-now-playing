@@ -15,13 +15,17 @@ function isValidFont(value: string | null): value is FontType {
   return value !== null && (FONTS as readonly string[]).includes(value);
 }
 
-/** Map removed background ids to a current one (e.g. center radial → corner). */
+/** Map removed background ids to a current one. */
 function migrateBackground(value: string | null): BackgroundType | null {
   if (!value) return null;
   if ((BACKGROUNDS as readonly string[]).includes(value)) return value as BackgroundType;
-  // Former center radial → corner gradient
-  if (value === 'gradient-radial' || value === 'gradient-simple' || value === 'gradient-linear') {
-    return 'gradient-radial-corner';
+  // Corner radial (2.0.43) and other gradient variants → center radial
+  if (
+    value === 'gradient-radial-corner' ||
+    value === 'gradient-simple' ||
+    value === 'gradient-linear'
+  ) {
+    return 'gradient-radial';
   }
   if (value === 'dominant' || value === 'blur-subtle' || value === 'blur-heavy') {
     return 'blur-grain';

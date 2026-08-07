@@ -2,10 +2,14 @@
 /**
  * Full-bleed background layers.
  *
- * blur-grain: heavily blurred album art + film grain + dark scrim.
+ * blur-grain (Apple Music style): grid of dominant album colors under a heavy
+ * glass blur + dark scrim so light text stays highly readable.
  * Radial / black fields are applied by the parent via useBackgroundStyle.
+ *
+ * Approach adapted from frigopedro/Apple-Music-Background:
+ * color mesh → heavy blur (glass) → dark veil for contrast.
  */
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import type { BackgroundType } from '@roon-screen-cover/shared';
 import type { ExtractedPalette, VibrantGradient } from '../composables/useColorExtraction';
 import noiseUrl from '../assets/noise.svg';
@@ -17,151 +21,135 @@ const props = defineProps<{
   vibrantGradient: VibrantGradient;
 }>();
 
-const currentArtwork = ref<string | null>(null);
-const previousArtwork = ref<string | null>(null);
-const isTransitioning = ref(false);
+/** Mesh resolution — 6×6 matches the reference implementation */
+const GRID = 6;
+const CELL_COUNT = GRID * GRID;
+
+const isMesh = computed(() => props.type === 'blur-grain');
+const needsNoise = computed(() => props.type === 'blur-grain');
+const needsScrim = computed(() => props.type === 'blur-grain');
 
 /**
- * Only true for very pale covers (e.g. light monochrome art).
- * Threshold is high so normal / colorful / dark albums are untouched.
+ * FNV-1a style seed from a string (palette + artwork) so the mesh is stable
+ * for a given album and does not reshuffle on every Vue re-render.
  */
-const isPaleArt = ref(false);
-let lumaGeneration = 0;
-
-/** Average relative luminance 0–1 from a tiny canvas sample. */
-function sampleIsPale(url: string | null): void {
-  const gen = ++lumaGeneration;
-  if (!url) {
-    isPaleArt.value = false;
-    return;
+function seedFrom(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.decoding = 'async';
-  img.onload = () => {
-    if (gen !== lumaGeneration) return;
-    try {
-      const size = 24;
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) {
-        isPaleArt.value = false;
-        return;
-      }
-      ctx.drawImage(img, 0, 0, size, size);
-      const { data } = ctx.getImageData(0, 0, size, size);
-      let sum = 0;
-      let n = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        if ((data[i + 3] ?? 0) < 128) continue;
-        const r = data[i]! / 255;
-        const g = data[i + 1]! / 255;
-        const b = data[i + 2]! / 255;
-        sum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        n++;
-      }
-      const luma = n > 0 ? sum / n : 0;
-      // Only kick in for clearly bright covers (Great Escape–class white/grey)
-      isPaleArt.value = luma >= 0.58;
-    } catch {
-      isPaleArt.value = false;
-    }
-  };
-  img.onerror = () => {
-    if (gen === lumaGeneration) isPaleArt.value = false;
-  };
-  img.src = url;
+  return h >>> 0;
 }
 
-watch(
-  () => props.artworkUrl,
-  (newUrl, oldUrl) => {
-    if (newUrl !== oldUrl) {
-      previousArtwork.value = currentArtwork.value;
-      currentArtwork.value = newUrl;
-      isTransitioning.value = true;
-      setTimeout(() => {
-        isTransitioning.value = false;
-        previousArtwork.value = null;
-      }, 500);
-    }
-    sampleIsPale(newUrl);
-  },
-  { immediate: true }
-);
+function mulberry32(seed: number): () => number {
+  let a = seed || 1;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
-/** Blurred cover as ambient field (Plexamp / Apple Music) */
-const needsArtworkBlur = computed(() => props.type === 'blur-grain');
+/** Build a rich set of mesh colors from extracted palette + vibrant ends. */
+function buildColorPool(
+  paletteCSS: string[],
+  vibrant: VibrantGradient
+): string[] {
+  const pool: string[] = [];
 
-const needsNoise = computed(() => props.type === 'blur-grain');
+  for (const c of paletteCSS) {
+    if (c && !pool.includes(c)) pool.push(c);
+  }
 
-const needsScrim = computed(() => needsArtworkBlur.value);
+  if (vibrant.ready) {
+    if (vibrant.center && !pool.includes(vibrant.center)) pool.push(vibrant.center);
+    if (vibrant.edge && !pool.includes(vibrant.edge)) pool.push(vibrant.edge);
+  }
 
-const needsGradientLayer = computed(() => false);
+  // Dark / mid fallbacks so monochrome art still gets depth
+  if (pool.length === 0) {
+    pool.push('hsl(220, 35%, 28%)', 'hsl(220, 40%, 14%)', 'hsl(200, 30%, 22%)', '#0a0a0c');
+  } else if (pool.length === 1) {
+    // Single color: synthesize darker / lighter siblings via color-mix fallbacks
+    pool.push('#0a0a0c', '#1a1a22', pool[0]!);
+  }
 
-const backgroundStyle = computed(() => ({}));
+  // Ensure enough variety by repeating with black mixed in via duplicates of darker ends
+  while (pool.length < 4) {
+    pool.push(pool[pool.length % Math.max(pool.length, 1)] || '#111');
+  }
+
+  return pool;
+}
 
 /**
- * Grainy Blur: very heavy blur + scale/rotate so the cover is unrecognizable.
- * Pale art only: slight brightness reduce.
+ * Deterministic 6×6 color mesh for the current album.
+ * Recomputed only when palette / artwork identity changes.
  */
-const imageFilter = computed(() => {
-  if (props.type !== 'blur-grain') return 'none';
-  // Aggressive soft wash (was 77px) — abstract color field, not a soft photo
-  let base = 'blur(110px) saturate(1.12)';
-  if (isPaleArt.value) {
-    return `${base} brightness(0.72)`;
+const meshColors = computed(() => {
+  if (!isMesh.value) return [] as string[];
+
+  const pool = buildColorPool(props.palette.paletteCSS, props.vibrantGradient);
+  const seedKey = [
+    props.artworkUrl || '',
+    ...pool,
+    props.palette.dominant.h,
+    props.palette.dominant.s,
+    props.palette.dominant.l,
+  ].join('|');
+  const rand = mulberry32(seedFrom(seedKey));
+
+  const cells: string[] = [];
+  for (let i = 0; i < CELL_COUNT; i++) {
+    cells.push(pool[Math.floor(rand() * pool.length)]!);
   }
-  return base;
+  return cells;
 });
 </script>
 
 <template>
   <div class="dynamic-background">
-    <!-- Solid / corner gradient layer -->
+    <!-- Apple Music–style color mesh (dominant colors in a grid) -->
     <div
-      v-if="needsGradientLayer"
-      class="gradient-layer"
-      :style="backgroundStyle"
-    />
-
-    <!-- Fallback black when blur ambient but no art yet -->
-    <div
-      v-if="needsArtworkBlur && !currentArtwork"
-      class="fallback-black"
-    />
-
-    <!-- Blurred artwork ambient (Grainy Blur) -->
-    <template v-if="needsArtworkBlur && currentArtwork">
-      <img
-        v-if="previousArtwork && isTransitioning"
-        :src="previousArtwork"
-        class="artwork-bg fade-out"
-        :style="{ filter: imageFilter }"
-        alt=""
-        decoding="async"
+      v-if="isMesh"
+      class="color-mesh"
+      aria-hidden="true"
+    >
+      <div
+        v-for="(color, i) in meshColors"
+        :key="i"
+        class="mesh-pixel"
+        :style="{ background: color }"
       />
-      <img
-        :src="currentArtwork"
-        class="artwork-bg"
-        :class="{ 'fade-in': isTransitioning }"
-        :style="{ filter: imageFilter }"
-        alt=""
-        decoding="async"
-      />
-    </template>
+    </div>
 
-    <!-- Dark scrim; --pale only when cover is very bright (extra veil, default unchanged) -->
+    <!-- Glass blur over the mesh (heavy backdrop + soft fill) -->
     <div
-      v-if="needsScrim"
-      class="ambient-scrim"
-      :class="{ 'ambient-scrim--pale': isPaleArt }"
+      v-if="isMesh"
+      class="glass-blur"
       aria-hidden="true"
     />
 
-    <!-- Grain (blur-grain only) -->
+    <!-- Fallback solid when no palette yet -->
+    <div
+      v-if="isMesh && meshColors.length === 0"
+      class="fallback-black"
+    />
+
+    <!--
+      Strong dark veil so light fact/title text is always very visible
+      over colorful washes (Apple Music also darkens under UI).
+    -->
+    <div
+      v-if="needsScrim"
+      class="ambient-scrim"
+      aria-hidden="true"
+    />
+
+    <!-- Subtle film grain -->
     <div
       v-if="needsNoise"
       class="noise-overlay"
@@ -183,12 +171,6 @@ const imageFilter = computed(() => {
   background: #000;
 }
 
-.gradient-layer {
-  position: absolute;
-  inset: 0;
-  transition: background 0.5s ease;
-}
-
 .fallback-black {
   position: absolute;
   inset: 0;
@@ -196,62 +178,65 @@ const imageFilter = computed(() => {
 }
 
 /*
- * Deep zoom + slight rotation so edges/structure of the cover vanish.
- * Large inset compensates for rotate without showing empty corners.
+ * Color grid oversized + CSS filter blur — more reliable on TV/Pi than
+ * backdrop-filter alone, and matches the soft Apple Music field look.
  */
-.artwork-bg {
+.color-mesh {
   position: absolute;
-  inset: -42%;
-  width: 184%;
-  height: 184%;
-  object-fit: cover;
-  object-position: center;
-  transform: rotate(-11deg) scale(1.08) translateZ(0);
-  will-change: opacity, transform;
+  /* Bleed past edges so blur doesn't show hard frame */
+  inset: -35%;
+  width: 170%;
+  height: 170%;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+  filter: blur(72px) saturate(1.15);
+  transform: scale(1.05);
+  will-change: filter;
+  z-index: 0;
 }
 
-.artwork-bg.fade-in {
-  animation: fadeIn 0.5s ease forwards;
+.mesh-pixel {
+  min-width: 0;
+  min-height: 0;
 }
 
-.artwork-bg.fade-out {
-  animation: fadeOut 0.5s ease forwards;
+/*
+ * Glass layer: backdrop blur + translucent dark fill (reference: blur 90px).
+ * Stacked on filter-blurred mesh for extra soft diffusion.
+ */
+.glass-blur {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(48px) saturate(1.1);
+  -webkit-backdrop-filter: blur(48px) saturate(1.1);
+  pointer-events: none;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-/* Apple/Plexamp-style darkening so facts stay readable — same as 2.0.39 */
+/*
+ * Dark scrim — bias field dark so pure white / near-white text pops.
+ * Stronger center-to-edge veil than older blur-photo path.
+ */
 .ambient-scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 2;
   background:
-    radial-gradient(ellipse 90% 80% at 50% 42%, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0.78) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.15) 40%, rgba(0, 0, 0, 0.55) 100%);
-  z-index: 1;
-}
-
-/* Extra veil only when art is pale (isPaleArt). Stacked on top of default scrim. */
-.ambient-scrim--pale {
-  background:
-    radial-gradient(ellipse 95% 85% at 50% 40%, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.62) 50%, rgba(0, 0, 0, 0.82) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.32) 40%, rgba(0, 0, 0, 0.6) 100%);
+    radial-gradient(
+      ellipse 95% 85% at 50% 40%,
+      rgba(0, 0, 0, 0.38) 0%,
+      rgba(0, 0, 0, 0.58) 50%,
+      rgba(0, 0, 0, 0.78) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.42) 0%,
+      rgba(0, 0, 0, 0.28) 40%,
+      rgba(0, 0, 0, 0.62) 100%
+    );
 }
 
 .noise-overlay {
@@ -259,14 +244,14 @@ const imageFilter = computed(() => {
   inset: 0;
   background-repeat: repeat;
   background-size: 200px 200px;
-  opacity: 0.07;
+  opacity: 0.06;
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
 }
 
 .content {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   width: 100%;
   height: 100%;
 }

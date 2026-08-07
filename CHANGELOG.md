@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.44] - 2026-08-07
+
+### Changed
+
+- **Grainy Blur:** Apple Music–style field (dominant-color 6×6 mesh + heavy glass blur + dark scrim), not blurred cover art. Light text is forced high-contrast so facts stay very readable.
+- **Radial Gradient:** restored center radial (replaced Corner Gradient). Existing `gradient-radial-corner` prefs migrate to `gradient-radial`.
+
 ## [2.0.43] - 2026-08-07
 
 ### Changed

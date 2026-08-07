@@ -88,18 +88,18 @@ export const FONT_CONFIG: Record<FontType, { displayName: string; googleFont: st
 export const BACKGROUNDS = [
   'black',
   'blur-grain',
-  'gradient-radial-corner',
+  'gradient-radial',
 ] as const;
 export type BackgroundType = (typeof BACKGROUNDS)[number];
 
-/** Default: heavily blurred album ambient with grain */
+/** Default: Apple Music–style color mesh + glass (Grainy Blur) */
 export const DEFAULT_BACKGROUND: BackgroundType = 'blur-grain';
 
 // Background display names
 export const BACKGROUND_CONFIG: Record<BackgroundType, { displayName: string }> = {
   black: { displayName: 'Black' },
   'blur-grain': { displayName: 'Grainy Blur' },
-  'gradient-radial-corner': { displayName: 'Corner Gradient' },
+  'gradient-radial': { displayName: 'Radial Gradient' },
 };
 
 // LLM Provider options

@@ -19,7 +19,7 @@ describe('ClientSettingsStore', () => {
     const settings = {
       layout: 'rpi-facts-carousel' as const,
       font: 'inter' as const,
-      background: 'gradient-radial-corner' as const,
+      background: 'gradient-radial' as const,
       zoneId: 'zone-1',
       zoneName: 'HiFi',
       fontScaleOverride: null,

@@ -8,14 +8,14 @@ export interface BackgroundStyleResult {
   needsColorExtraction: ComputedRef<boolean>;
 }
 
-/** Types that need DynamicBackground (blurred art + layers) */
+/** Types that need DynamicBackground (Apple Music color mesh + glass) */
 export const DYNAMIC_BACKGROUND_TYPES: readonly BackgroundType[] = ['blur-grain'] as const;
 
 /**
- * High-contrast chrome for monochromatic color washes (corner gradient).
+ * High-contrast chrome for monochromatic color washes (radial gradient).
  * Soft album accents share the field hue and disappear into the wash.
  */
-export const GRADIENT_HIGH_CONTRAST_CHROME: Record<string, string> = {
+export const RADIAL_HIGH_CONTRAST_CHROME: Record<string, string> = {
   '--rpi-progress-fill': 'rgba(255, 255, 255, 0.95)',
   '--rpi-progress-track': 'rgba(255, 255, 255, 0.36)',
   '--rpi-dot': 'rgba(255, 255, 255, 0.4)',
@@ -24,8 +24,25 @@ export const GRADIENT_HIGH_CONTRAST_CHROME: Record<string, string> = {
   '--progress-bar-bg': 'rgba(255, 255, 255, 0.36)',
 };
 
-/** @deprecated alias — same as GRADIENT_HIGH_CONTRAST_CHROME */
-export const RADIAL_HIGH_CONTRAST_CHROME = GRADIENT_HIGH_CONTRAST_CHROME;
+/** @deprecated alias */
+export const GRADIENT_HIGH_CONTRAST_CHROME = RADIAL_HIGH_CONTRAST_CHROME;
+
+/**
+ * Forced light text for Grainy Blur / Apple mesh — always highly readable
+ * over the darkened color field.
+ */
+export const BLUR_LIGHT_TEXT: Record<string, string> = {
+  '--text-color': '#ffffff',
+  '--text-primary': '#ffffff',
+  '--text-secondary': 'rgba(255, 255, 255, 0.92)',
+  '--text-tertiary': 'rgba(255, 255, 255, 0.8)',
+  '--rpi-fact': '#ffffff',
+  '--rpi-fact-muted': 'rgba(255, 255, 255, 0.82)',
+  '--rpi-title': '#ffffff',
+  '--rpi-artist': 'rgba(255, 255, 255, 0.92)',
+  '--rpi-meta': 'rgba(255, 255, 255, 0.8)',
+  '--rpi-sep': 'rgba(255, 255, 255, 0.5)',
+};
 
 /**
  * Composable for generating background styles based on background type
@@ -41,14 +58,6 @@ export function useBackgroundStyle(
     '--progress-bar-bg': 'rgba(255, 255, 255, 0.38)',
     '--progress-bar-fill': 'rgba(255, 255, 255, 0.9)',
   };
-  const darkProgressBar = {
-    '--progress-bar-bg': 'rgba(26, 26, 26, 0.22)',
-    '--progress-bar-fill': 'rgba(26, 26, 26, 0.7)',
-  };
-
-  function progressBarForText(textColor: string) {
-    return textColor === '#1a1a1a' ? darkProgressBar : lightProgressBar;
-  }
 
   const style = computed(() => {
     switch (backgroundType.value) {
@@ -61,44 +70,34 @@ export function useBackgroundStyle(
           ...lightProgressBar,
         };
 
-      case 'gradient-radial-corner':
-        // Corner radial from top-left; light chrome for contrast on color wash
+      case 'gradient-radial':
+        // Center radial (restored from pre-corner versions) + light chrome
         if (vibrantGradient?.value?.ready) {
           return {
-            background: `radial-gradient(ellipse 140% 120% at 0% 0%, ${vibrantGradient.value.center} 0%, ${vibrantGradient.value.edge} 72%, #000000 100%)`,
+            background: `radial-gradient(ellipse 120% 100% at 50% 50%, ${vibrantGradient.value.center} 0%, ${vibrantGradient.value.edge} 100%)`,
             '--text-color': '#f5f5f5',
             '--text-secondary': 'rgba(245, 245, 245, 0.85)',
             '--text-tertiary': 'rgba(245, 245, 245, 0.7)',
             ...lightProgressBar,
-            ...GRADIENT_HIGH_CONTRAST_CHROME,
+            ...RADIAL_HIGH_CONTRAST_CHROME,
           };
         }
         return {
-          background: 'radial-gradient(ellipse 140% 120% at 0% 0%, #2a2a35 0%, #0a0a0c 72%, #000000 100%)',
+          background: 'radial-gradient(ellipse 120% 100% at 50% 50%, #1a1a1a 0%, #000000 100%)',
           '--text-color': '#ffffff',
           '--text-secondary': 'rgba(255, 255, 255, 0.8)',
           '--text-tertiary': 'rgba(255, 255, 255, 0.6)',
           ...lightProgressBar,
-          ...GRADIENT_HIGH_CONTRAST_CHROME,
+          ...RADIAL_HIGH_CONTRAST_CHROME,
         };
 
       case 'blur-grain':
-        // Field = DynamicBackground blur; chrome from useAlbumTheme / light defaults
-        if (vibrantGradient?.value?.ready) {
-          return {
-            background: 'transparent',
-            '--text-color': vibrantGradient.value.text,
-            '--text-secondary': vibrantGradient.value.textSecondary,
-            '--text-tertiary': vibrantGradient.value.textTertiary,
-            ...progressBarForText(vibrantGradient.value.text),
-          };
-        }
+        // Field = DynamicBackground mesh; always force bright light text
         return {
           background: 'transparent',
-          '--text-color': '#ffffff',
-          '--text-secondary': 'rgba(255, 255, 255, 0.8)',
-          '--text-tertiary': 'rgba(255, 255, 255, 0.6)',
+          ...BLUR_LIGHT_TEXT,
           ...lightProgressBar,
+          ...RADIAL_HIGH_CONTRAST_CHROME,
         };
 
       default:

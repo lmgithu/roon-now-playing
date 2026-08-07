@@ -77,8 +77,8 @@ export function useColorExtraction(artworkUrl: Ref<string | null>) {
           const extracted = generateColors(dominant);
           const vibrant = generateVibrantGradient(dominant);
 
-          // Extract color palette
-          const paletteColors = extractColorPalette(imageData);
+          // Extract color palette (more hues feed the Apple Music color mesh)
+          const paletteColors = extractColorPalette(imageData, 6);
           const paletteCSS = paletteColors.map((c) => hslToString(c.h, c.s, c.l));
           const extractedPalette: ExtractedPalette = {
             dominant,

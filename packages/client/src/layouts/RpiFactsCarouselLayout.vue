@@ -15,6 +15,7 @@ import {
   useBackgroundStyle,
   DYNAMIC_BACKGROUND_TYPES,
   RADIAL_HIGH_CONTRAST_CHROME,
+  BLUR_LIGHT_TEXT,
 } from '../composables/useBackgroundStyle';
 import DynamicBackground from '../components/DynamicBackground.vue';
 
@@ -35,7 +36,7 @@ const stateRef = computed(() => props.state);
 
 const { facts, currentFactIndex, currentFact, isLoading, error } = useFacts(trackRef, stateRef);
 
-// Chrome only (progress/dots/text). Field = blur-grain, corner gradient, or black.
+// Chrome only (progress/dots/text). Field = blur-grain, radial, or black.
 const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: trackRef,
@@ -51,13 +52,13 @@ const usesDynamicBackground = computed(() =>
   (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
 );
 
-/** Chrome vars + field styles. Radial gets forced light progress/dots for contrast. */
+/** Chrome vars + field styles. Mesh/radial force high-contrast light text. */
 const layoutStyle = computed((): CSSProperties => {
   if (usesDynamicBackground.value) {
-    // Blur field lives in DynamicBackground; only chrome CSS vars here
-    return { ...albumChrome.value };
+    // Mesh field in DynamicBackground; force bright light text over dark veil
+    return { ...albumChrome.value, ...BLUR_LIGHT_TEXT, ...RADIAL_HIGH_CONTRAST_CHROME };
   }
-  if (props.background === 'gradient-radial-corner') {
+  if (props.background === 'gradient-radial') {
     return {
       ...backgroundStyle.value,
       ...albumChrome.value,

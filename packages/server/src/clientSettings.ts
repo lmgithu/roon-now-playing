@@ -37,8 +37,12 @@ export class ClientSettingsStore {
           if (!settings?.background || !(BACKGROUNDS as readonly string[]).includes(settings.background)) {
             // Map removed backgrounds so existing screens keep a sensible choice
             const legacy = settings?.background as string | undefined;
-            if (legacy === 'gradient-radial' || legacy === 'gradient-simple' || legacy === 'gradient-linear') {
-              settings.background = 'gradient-radial-corner';
+            if (
+              legacy === 'gradient-radial-corner' ||
+              legacy === 'gradient-simple' ||
+              legacy === 'gradient-linear'
+            ) {
+              settings.background = 'gradient-radial';
             } else if (legacy === 'dominant' || legacy === 'blur-subtle' || legacy === 'blur-heavy') {
               settings.background = 'blur-grain';
             } else {
