@@ -384,23 +384,29 @@ onUnmounted(() => {
 .fact-dots {
   display: flex;
   justify-content: center;
-  gap: clamp(10px, 1cqi, 20px);
+  gap: clamp(10px, 1cqi, 18px);
   flex-shrink: 0;
   margin: 0;
   /* Small extra lift so dots read as a separate control, not a text underline */
   padding-top: clamp(0.15rem, 0.6cqb, 0.45rem);
 }
 
+/*
+ * Fact dots sized to sit with the progress bar (~same visual weight /
+ * height band as the 1.25× dock bar).
+ */
 .dot {
-  width: clamp(7px, 0.65cqi, 14px);
-  height: clamp(7px, 0.65cqi, 14px);
+  width: clamp(6px, 0.55cqi, 11px);
+  height: clamp(6px, 0.55cqi, 11px);
   border-radius: 50%;
   background: var(--rpi-dot, rgba(245, 245, 245, 0.35));
-  transition: background-color 0.32s ease-in-out;
+  transition: background-color 0.32s ease-in-out, transform 0.32s ease-in-out;
 }
 
 .dot.active {
   background: var(--rpi-dot-active, #f5f5f5);
+  /* Slightly larger active state so the pair still feels intentional */
+  transform: scale(1.15);
 }
 
 .no-playback {
@@ -499,8 +505,8 @@ onUnmounted(() => {
 }
 
 .progress-line {
-  /* ~1.5× prior height — sofa-readable without overpowering the cover */
-  height: clamp(6px, 0.57cqi, 12px);
+  /* ~1.25× original height (was 4–8px) — readable without dominating the cover */
+  height: clamp(5px, 0.475cqi, 10px);
   /* Homogeneous track — prominent enough to read on album-colored fields */
   background: var(--rpi-progress-track, rgba(245, 245, 245, 0.4));
   border-radius: 999px;
@@ -636,7 +642,12 @@ onUnmounted(() => {
   }
 
   .progress-line {
-    height: clamp(7px, 0.62cqi, 13px);
+    height: clamp(6px, 0.52cqi, 11px);
+  }
+
+  .dot {
+    width: clamp(7px, 0.58cqi, 12px);
+    height: clamp(7px, 0.58cqi, 12px);
   }
 }
 
@@ -665,7 +676,12 @@ onUnmounted(() => {
   }
 
   .progress-line {
-    height: clamp(8px, 0.55cqi, 14px);
+    height: clamp(6px, 0.48cqi, 12px);
+  }
+
+  .dot {
+    width: clamp(7px, 0.52cqi, 12px);
+    height: clamp(7px, 0.52cqi, 12px);
   }
 }
 

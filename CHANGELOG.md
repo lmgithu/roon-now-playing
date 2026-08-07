@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.51] - 2026-08-07
+
+### Changed
+
+- **RPi Facts:** progress bar height tuned to **~1.25×** original (was 1.5×); fact dots resized to match the bar’s visual weight.
+- **Ambient:** progress bar **~1.25×** original (7.5px).
+
 ## [2.0.50] - 2026-08-07
 
 ### Changed

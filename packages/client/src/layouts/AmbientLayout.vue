@@ -55,10 +55,10 @@ watch(
 /**
  * Title/artist always light. Progress fill comes from backgroundStyle
  * (Colors → accent, Black → white).
- * Bar ~1.5× thicker; times/zone larger for 10-ft TV balance.
+ * Bar ~1.25× original (6px → 7.5px); times/zone larger for 10-ft TV balance.
  */
 const lightStatusChrome = {
-  '--progress-bar-height': '9px',
+  '--progress-bar-height': '7.5px',
   '--progress-time-size': 'clamp(16px, 1.85vw, 24px)',
   '--text-color': '#f1f1f3',
   '--text-secondary': 'rgba(255, 255, 255, 0.5)',
