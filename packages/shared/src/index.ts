@@ -87,19 +87,17 @@ export const FONT_CONFIG: Record<FontType, { displayName: string; googleFont: st
 // Background options (flat list — no categories)
 export const BACKGROUNDS = [
   'black',
-  'blur-grain',
-  'gradient-radial',
+  'colors',
 ] as const;
 export type BackgroundType = (typeof BACKGROUNDS)[number];
 
-/** Default: Apple Music–style color mesh + glass (Grainy Blur) */
-export const DEFAULT_BACKGROUND: BackgroundType = 'blur-grain';
+/** Default: premium “colored black” from album (mental-model / demo-player) */
+export const DEFAULT_BACKGROUND: BackgroundType = 'colors';
 
 // Background display names
 export const BACKGROUND_CONFIG: Record<BackgroundType, { displayName: string }> = {
   black: { displayName: 'Black' },
-  'blur-grain': { displayName: 'Grainy Blur' },
-  'gradient-radial': { displayName: 'Radial Gradient' },
+  colors: { displayName: 'Colors' },
 };
 
 // LLM Provider options

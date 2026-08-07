@@ -1,15 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/shared';
-import DynamicBackground from '../components/DynamicBackground.vue';
 import { useColorExtraction } from '../composables/useColorExtraction';
 import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
-import {
-  DYNAMIC_BACKGROUND_TYPES,
-  RADIAL_HIGH_CONTRAST_CHROME,
-  BLUR_LIGHT_TEXT,
-} from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
   track: Track | null;
@@ -31,55 +25,17 @@ const { cssVars: albumChrome } = useAlbumTheme({
 
 const backgroundRef = computed(() => props.background);
 const artworkUrlRef = computed(() => props.artworkUrl);
-const { colors, vibrantGradient, palette } = useColorExtraction(artworkUrlRef);
-const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, vibrantGradient);
+const { colors, palette } = useColorExtraction(artworkUrlRef);
+const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, palette);
 
-const usesDynamicBackground = computed(() =>
-  (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
-);
-
-const rootStyle = computed(() => {
-  if (usesDynamicBackground.value) {
-    return { ...albumChrome.value, ...BLUR_LIGHT_TEXT, ...RADIAL_HIGH_CONTRAST_CHROME };
-  }
-  if (props.background === 'gradient-radial') {
-    return {
-      ...(backgroundStyle.value || {}),
-      ...albumChrome.value,
-      ...RADIAL_HIGH_CONTRAST_CHROME,
-    };
-  }
-  return {
-    ...(backgroundStyle.value || {}),
-    ...albumChrome.value,
-  };
-});
+const rootStyle = computed(() => ({
+  ...albumChrome.value,
+  ...(backgroundStyle.value || {}),
+}));
 </script>
 
 <template>
-  <DynamicBackground
-    v-if="usesDynamicBackground"
-    :type="background"
-    :artwork-url="artworkUrl"
-    :palette="palette"
-    :vibrant-gradient="vibrantGradient"
-    class="fullscreen-layout" :style="rootStyle"
-  >
-    <img
-      v-if="artworkUrl"
-      :src="artworkUrl"
-      :alt="track?.album || 'Album artwork'"
-      class="artwork"
-    />
-    <div v-else class="artwork-placeholder">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-      </svg>
-      <p v-if="!track">No playback</p>
-    </div>
-  </DynamicBackground>
-
-  <div v-else class="fullscreen-layout" :style="rootStyle">
+  <div class="fullscreen-layout" :style="rootStyle">
     <img
       v-if="artworkUrl"
       :src="artworkUrl"

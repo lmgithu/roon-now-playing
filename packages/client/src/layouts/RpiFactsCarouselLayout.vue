@@ -2,8 +2,8 @@
 /**
  * RPi Facts Carousel — Facts-carousel hierarchy, Pi 3–safe / 10-foot TV rendering.
  *
- * Ambient field: Grainy Blur via DynamicBackground; Radial / Black via useBackgroundStyle.
- * Chrome (progress/dots/text): conservative mid-tone accents from useAlbumTheme.
+ * Field: Black or Colors (premium colored-black from album — mental-model).
+ * Progress fill / active dots: accent (Colors) or white (Black).
  * Typography is TV-first: dock chrome scales with viewport; fact size is length-aware.
  */
 import { computed, ref, watch, onUnmounted, type CSSProperties } from 'vue';
@@ -11,13 +11,7 @@ import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/sh
 import { useFacts } from '../composables/useFacts';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
 import { useColorExtraction } from '../composables/useColorExtraction';
-import {
-  useBackgroundStyle,
-  DYNAMIC_BACKGROUND_TYPES,
-  RADIAL_HIGH_CONTRAST_CHROME,
-  BLUR_LIGHT_TEXT,
-} from '../composables/useBackgroundStyle';
-import DynamicBackground from '../components/DynamicBackground.vue';
+import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
   track: Track | null;
@@ -36,7 +30,6 @@ const stateRef = computed(() => props.state);
 
 const { facts, currentFactIndex, currentFact, isLoading, error } = useFacts(trackRef, stateRef);
 
-// Chrome only (progress/dots/text). Field = blur-grain, radial, or black.
 const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
   track: trackRef,
@@ -45,31 +38,14 @@ const { cssVars: albumChrome } = useAlbumTheme({
 
 const backgroundRef = computed(() => props.background);
 const artworkUrlRef = computed(() => props.artworkUrl);
-const { colors, vibrantGradient, palette } = useColorExtraction(artworkUrlRef);
-const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, vibrantGradient);
+const { colors, palette } = useColorExtraction(artworkUrlRef);
+const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, palette);
 
-const usesDynamicBackground = computed(() =>
-  (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
-);
-
-/** Chrome vars + field styles. Mesh/radial force high-contrast light text. */
-const layoutStyle = computed((): CSSProperties => {
-  if (usesDynamicBackground.value) {
-    // Mesh field in DynamicBackground; force bright light text over dark veil
-    return { ...albumChrome.value, ...BLUR_LIGHT_TEXT, ...RADIAL_HIGH_CONTRAST_CHROME };
-  }
-  if (props.background === 'gradient-radial') {
-    return {
-      ...backgroundStyle.value,
-      ...albumChrome.value,
-      ...RADIAL_HIGH_CONTRAST_CHROME,
-    };
-  }
-  return {
-    ...backgroundStyle.value,
-    ...albumChrome.value,
-  };
-});
+/** backgroundStyle last so Colors accent wins for progress / active dots */
+const layoutStyle = computed((): CSSProperties => ({
+  ...albumChrome.value,
+  ...backgroundStyle.value,
+}));
 
 /**
  * Sequential fact transition (no overlap):
@@ -211,78 +187,7 @@ onUnmounted(() => {
 
 
 <template>
-  <DynamicBackground
-    v-if="usesDynamicBackground"
-    :type="background"
-    :artwork-url="artworkUrl"
-    :palette="palette"
-    :vibrant-gradient="vibrantGradient"
-    class="rpi-facts-carousel-layout"
-    :style="layoutStyle"
-  >
-    <div class="content">
-      <div class="safe-zone">
-        <div class="facts-area">
-          <div v-if="!track" class="no-playback">
-            <p class="no-playback-text">No playback</p>
-            <p class="zone-hint">{{ zoneName }}</p>
-          </div>
-          <template v-else>
-            <p v-if="isLoading && !displayFact" class="loading-hint">Loading facts…</p>
-            <p
-              v-else-if="displayFact"
-              class="fact-text"
-              :class="`fact-${factDensity}`"
-              :style="{ opacity: factOpacity }"
-            >{{ displayFact }}</p>
-            <p v-else-if="error && error.type === 'no-key'" class="error-hint">
-              Configure API key in <a href="/admin">Admin</a>
-            </p>
-            <div v-if="facts.length > 1" class="fact-dots">
-              <span
-                v-for="(_, index) in facts"
-                :key="index"
-                class="dot"
-                :class="{ active: index === currentFactIndex }"
-              />
-            </div>
-          </template>
-        </div>
-        <div v-if="track" class="now-playing-row">
-          <div class="cover-wrap">
-            <img v-if="artworkUrl" :src="artworkUrl" alt="" class="cover-art" decoding="async" />
-            <div v-else class="cover-placeholder" />
-          </div>
-          <div class="now-playing">
-            <div class="np-line">
-              <span class="np-title">{{ track.title }}</span>
-              <span class="np-sep">·</span>
-              <span class="np-artist">{{ track.artist }}</span>
-            </div>
-            <div class="progress-line" :class="{ 'is-paused': !isPlaying }">
-              <div class="progress-fill" />
-            </div>
-            <div class="np-meta">
-              <span class="meta-left">
-                <span class="zone-name">{{ zoneName }}</span>
-                <template v-if="track.source_label">
-                  <span class="meta-dot" aria-hidden="true">·</span>
-                  <span class="source-label">{{ track.source_label }}</span>
-                </template>
-                <template v-if="track.quality_label">
-                  <span class="meta-dot" aria-hidden="true">·</span>
-                  <span class="quality-label">{{ track.quality_label }}</span>
-                </template>
-              </span>
-              <span class="time-info">{{ currentTime }} / {{ duration }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </DynamicBackground>
-
-  <div v-else class="rpi-facts-carousel-layout" :style="layoutStyle">
+  <div class="rpi-facts-carousel-layout" :style="layoutStyle">
     <div class="content">
       <div class="safe-zone">
         <!-- Fact (hero) -->

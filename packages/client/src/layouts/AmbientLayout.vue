@@ -4,13 +4,7 @@ import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/sh
 import { useColorExtraction } from '../composables/useColorExtraction';
 import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import ProgressBar from '../components/ProgressBar.vue';
-import DynamicBackground from '../components/DynamicBackground.vue';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
-import {
-  DYNAMIC_BACKGROUND_TYPES,
-  RADIAL_HIGH_CONTRAST_CHROME,
-  BLUR_LIGHT_TEXT,
-} from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
   track: Track | null;
@@ -26,8 +20,8 @@ const props = defineProps<{
 
 const backgroundRef = computed(() => props.background);
 const artworkUrlRef = computed(() => props.artworkUrl);
-const { vibrantGradient, palette, isTransitioning } = useColorExtraction(artworkUrlRef);
-const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, undefined, vibrantGradient);
+const { colors, palette, isTransitioning } = useColorExtraction(artworkUrlRef);
+const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, palette);
 
 const { cssVars: albumChrome } = useAlbumTheme({
   artworkUrl: () => props.artworkUrl,
@@ -35,9 +29,6 @@ const { cssVars: albumChrome } = useAlbumTheme({
   progress: () => props.progress,
 });
 
-const usesDynamicBackground = computed(() =>
-  (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
-);
 
 // Track previous artwork for crossfade
 const displayedArtwork = ref<string | null>(null);
@@ -62,132 +53,27 @@ watch(
 );
 
 /**
- * Title/artist/album are always light (--rpi-title etc.). Match status chrome:
- * progress, times, zone, equalizer — always light (no black flip on pale covers).
+ * Title/artist always light. Progress fill comes from backgroundStyle
+ * (Colors → accent, Black → white).
  */
 const lightStatusChrome = {
   '--progress-bar-height': '6px',
   '--progress-time-size': 'clamp(14px, 1.5vw, 18px)',
-  '--progress-bar-bg': 'rgba(255, 255, 255, 0.38)',
-  '--progress-bar-fill': '#f5f5f5',
-  '--text-color': '#f5f5f5',
-  '--text-secondary': 'rgba(245, 245, 245, 0.82)',
-  '--text-tertiary': 'rgba(245, 245, 245, 0.7)',
+  '--text-color': '#f1f1f3',
+  '--text-secondary': 'rgba(255, 255, 255, 0.5)',
+  '--text-tertiary': 'rgba(255, 255, 255, 0.38)',
 } as const;
 
-/**
- * Same field sources as other layouts:
- * - blur-grain → DynamicBackground (Apple Music color mesh + glass)
- * - radial / black → useBackgroundStyle
- * Light status chrome; mesh + radial force high-contrast light text.
- */
-const ambientStyle = computed(() => {
-  if (usesDynamicBackground.value) {
-    return {
-      ...lightStatusChrome,
-      ...albumChrome.value,
-      ...BLUR_LIGHT_TEXT,
-      ...RADIAL_HIGH_CONTRAST_CHROME,
-    };
-  }
-
-  if (props.background === 'gradient-radial') {
-    return {
-      ...backgroundStyle.value,
-      ...lightStatusChrome,
-      ...albumChrome.value,
-      ...RADIAL_HIGH_CONTRAST_CHROME,
-    };
-  }
-
-  return {
-    ...backgroundStyle.value,
-    ...lightStatusChrome,
-    ...albumChrome.value,
-  };
-});
-
-const rootStyle = ambientStyle;
+const rootStyle = computed(() => ({
+  ...albumChrome.value,
+  ...lightStatusChrome,
+  ...backgroundStyle.value,
+}));
 
 </script>
 
 <template>
-  <DynamicBackground
-    v-if="usesDynamicBackground"
-    :type="background"
-    :artwork-url="artworkUrl"
-    :palette="palette"
-    :vibrant-gradient="vibrantGradient"
-    class="ambient-layout"
-    :class="{ transitioning: isTransitioning }"
-    :style="rootStyle"
-  >
-    <div class="safe-zone">
-      <div class="content">
-        <!-- Left column: Artwork -->
-        <div class="artwork-column">
-          <div class="artwork-wrapper">
-            <!-- Previous artwork (for crossfade) -->
-            <img
-              v-if="previousArtwork && artworkTransitioning"
-              :src="previousArtwork"
-              alt=""
-              class="artwork artwork-previous"
-            />
-            <!-- Current artwork -->
-            <img
-              v-if="displayedArtwork"
-              :src="displayedArtwork"
-              :alt="track?.album || 'Album artwork'"
-              class="artwork"
-              :class="{ 'artwork-entering': artworkTransitioning }"
-            />
-            <div v-else class="artwork-placeholder">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right column: Metadata -->
-        <div class="metadata-column">
-          <div v-if="track" class="track-info">
-            <h1 class="title">{{ track.title }}</h1>
-            <p class="artist">{{ track.artist }}</p>
-            <p class="album">{{ track.album }}</p>
-          </div>
-          <div v-else class="no-playback">
-            <p class="no-playback-text">No playback</p>
-            <p class="zone-hint">{{ zoneName }}</p>
-          </div>
-
-          <!-- Progress bar -->
-          <div v-if="track" class="progress-container">
-            <ProgressBar
-              :progress="progress"
-              :current-time="currentTime"
-              :duration="duration"
-              :show-time="true" :is-playing="isPlaying" />
-          </div>
-
-          <!-- Zone indicator -->
-          <div class="zone-indicator">
-            <span class="zone-name">{{ zoneName }}</span>
-            <span v-if="isPlaying" class="playing-indicator">
-              <span class="bar"></span>
-              <span class="bar"></span>
-              <span class="bar"></span>
-            </span>
-            <span v-else-if="state === 'paused'" class="paused-indicator">⏸</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </DynamicBackground>
-
   <div
-    v-else
     class="ambient-layout"
     :class="{ transitioning: isTransitioning }"
     :style="rootStyle"

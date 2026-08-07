@@ -1,15 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import type { Track, PlaybackState, BackgroundType } from "@roon-screen-cover/shared";
-import DynamicBackground from '../components/DynamicBackground.vue';
 import { useColorExtraction } from '../composables/useColorExtraction';
 import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
-import {
-  DYNAMIC_BACKGROUND_TYPES,
-  RADIAL_HIGH_CONTRAST_CHROME,
-  BLUR_LIGHT_TEXT,
-} from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
     track: Track | null;
@@ -31,17 +25,13 @@ const { cssVars: albumChrome } = useAlbumTheme({
 
 const backgroundRef = computed(() => props.background);
 const artworkUrlRef = computed(() => props.artworkUrl);
-const { colors, vibrantGradient, palette } = useColorExtraction(artworkUrlRef);
-const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, vibrantGradient);
-
-const usesDynamicBackground = computed(() =>
-  (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
-);
+const { colors, palette } = useColorExtraction(artworkUrlRef);
+const { style: backgroundStyle } = useBackgroundStyle(backgroundRef, colors, palette);
 
 // Dark chrome for cover shadow on nearly all remaining backgrounds
 const isDarkMode = computed(() => {
     if (props.background === 'black') return true;
-    return colors.value.mode !== 'light';
+    return true; // Colors is always dark “colored black”
 });
 
 // Track previous artwork for crossfade
@@ -71,63 +61,14 @@ const layoutClass = computed(() => ({
     "dark-mode": isDarkMode.value,
 }));
 
-const rootStyle = computed(() => {
-  if (usesDynamicBackground.value) {
-    return { ...albumChrome.value, ...BLUR_LIGHT_TEXT, ...RADIAL_HIGH_CONTRAST_CHROME };
-  }
-  if (props.background === 'gradient-radial') {
-    return {
-      ...(backgroundStyle.value || {}),
-      ...albumChrome.value,
-      ...RADIAL_HIGH_CONTRAST_CHROME,
-    };
-  }
-  return { ...(backgroundStyle.value || {}), ...albumChrome.value };
-});
+const rootStyle = computed(() => ({
+  ...albumChrome.value,
+  ...(backgroundStyle.value || {}),
+}));
 </script>
 
 <template>
-    <DynamicBackground
-        v-if="usesDynamicBackground"
-        :type="background"
-        :artwork-url="artworkUrl"
-        :palette="palette"
-        :vibrant-gradient="vibrantGradient"
-        :class="layoutClass"
-        :style="rootStyle"
-    >
-        <div class="cover-content">
-            <div class="safe-zone">
-                <div class="artwork-container">
-                    <!-- Previous artwork (for crossfade) -->
-                    <img
-                        v-if="previousArtwork && artworkTransitioning"
-                        :src="previousArtwork"
-                        alt=""
-                        class="artwork artwork-previous"
-                    />
-                    <!-- Current artwork -->
-                    <img
-                        v-if="displayedArtwork"
-                        :src="displayedArtwork"
-                        :alt="track?.album || 'Album artwork'"
-                        class="artwork"
-                        :class="{ 'artwork-entering': artworkTransitioning }"
-                    />
-                    <!-- Placeholder for missing artwork -->
-                    <div v-else class="artwork-placeholder">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
-                            <path
-                                d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"
-                            />
-                        </svg>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </DynamicBackground>
-
-    <div v-else :class="layoutClass" :style="rootStyle">
+    <div :class="layoutClass" :style="rootStyle">
         <div class="safe-zone">
             <div class="artwork-container">
                 <!-- Previous artwork (for crossfade) -->

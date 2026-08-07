@@ -38,13 +38,16 @@ export class ClientSettingsStore {
             // Map removed backgrounds so existing screens keep a sensible choice
             const legacy = settings?.background as string | undefined;
             if (
+              legacy === 'blur-grain' ||
+              legacy === 'gradient-radial' ||
               legacy === 'gradient-radial-corner' ||
               legacy === 'gradient-simple' ||
-              legacy === 'gradient-linear'
+              legacy === 'gradient-linear' ||
+              legacy === 'dominant' ||
+              legacy === 'blur-subtle' ||
+              legacy === 'blur-heavy'
             ) {
-              settings.background = 'gradient-radial';
-            } else if (legacy === 'dominant' || legacy === 'blur-subtle' || legacy === 'blur-heavy') {
-              settings.background = 'blur-grain';
+              settings.background = 'colors';
             } else {
               settings.background = DEFAULT_BACKGROUND;
             }

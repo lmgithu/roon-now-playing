@@ -249,8 +249,8 @@ describe('Facts Types', () => {
   });
 
   describe('BACKGROUNDS', () => {
-    it('should include only Black, Grainy Blur, Radial Gradient', () => {
-      expect(BACKGROUNDS).toEqual(['black', 'blur-grain', 'gradient-radial']);
+    it('should include only Black and Colors', () => {
+      expect(BACKGROUNDS).toEqual(['black', 'colors']);
     });
 
     it('should have display names for all background types', () => {

@@ -19,16 +19,18 @@ function isValidFont(value: string | null): value is FontType {
 function migrateBackground(value: string | null): BackgroundType | null {
   if (!value) return null;
   if ((BACKGROUNDS as readonly string[]).includes(value)) return value as BackgroundType;
-  // Corner radial (2.0.43) and other gradient variants → center radial
+  // Former blur / gradient / mesh backgrounds → Colors (premium colored-black)
   if (
+    value === 'blur-grain' ||
+    value === 'gradient-radial' ||
     value === 'gradient-radial-corner' ||
     value === 'gradient-simple' ||
-    value === 'gradient-linear'
+    value === 'gradient-linear' ||
+    value === 'dominant' ||
+    value === 'blur-subtle' ||
+    value === 'blur-heavy'
   ) {
-    return 'gradient-radial';
-  }
-  if (value === 'dominant' || value === 'blur-subtle' || value === 'blur-heavy') {
-    return 'blur-grain';
+    return 'colors';
   }
   return null;
 }

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.49] - 2026-08-07
+
+### Changed
+
+- **Backgrounds:** only **Black** and **Colors**. Removed Grainy Blur / Radial Gradient (legacy prefs migrate to Colors).
+- **Colors:** premium “colored black” from album art (mental-model / demo-player): DarkMuted → sat 15–30%, L ≈ 8–14%, soft vertical gradient. Progress track is muted white; **progress fill and active dots use the album accent** (Vibrant, sat ≤ 55%, L ≈ 55%). Art stays the colorful star.
+
 ## [2.0.48] - 2026-08-07
 
 ### Fixed
