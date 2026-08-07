@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.45] - 2026-08-07
+
+### Fixed
+
+- **Grainy Blur (Apple Music):** reimplemented to match [Apple-Music-Background](https://github.com/frigopedro/Apple-Music-Background) — sample dominant cover colors, 6×6 color grid, single glass blur. Removed stacked dark scrims that made the field look black; colors are boosted into a vivid mid range so the mesh is actually visible while light text stays readable.
+
 ## [2.0.44] - 2026-08-07
 
 ### Changed
