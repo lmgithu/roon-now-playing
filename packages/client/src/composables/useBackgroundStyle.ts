@@ -12,6 +12,19 @@ export interface BackgroundStyleResult {
 export const DYNAMIC_BACKGROUND_TYPES: readonly BackgroundType[] = ['blur-grain'] as const;
 
 /**
+ * High-contrast chrome for monochromatic fields (radial gradient).
+ * Soft album accents share the field hue and disappear into the wash.
+ */
+export const RADIAL_HIGH_CONTRAST_CHROME: Record<string, string> = {
+  '--rpi-progress-fill': 'rgba(255, 255, 255, 0.95)',
+  '--rpi-progress-track': 'rgba(255, 255, 255, 0.36)',
+  '--rpi-dot': 'rgba(255, 255, 255, 0.4)',
+  '--rpi-dot-active': '#ffffff',
+  '--progress-bar-fill': 'rgba(255, 255, 255, 0.95)',
+  '--progress-bar-bg': 'rgba(255, 255, 255, 0.36)',
+};
+
+/**
  * Composable for generating background styles based on background type
  */
 export function useBackgroundStyle(
@@ -46,13 +59,15 @@ export function useBackgroundStyle(
         };
 
       case 'gradient-radial':
+        // Always light chrome — field is a solid color wash; dark/mid accents vanish into it
         if (vibrantGradient?.value?.ready) {
           return {
             background: `radial-gradient(ellipse 120% 100% at 50% 50%, ${vibrantGradient.value.center} 0%, ${vibrantGradient.value.edge} 100%)`,
-            '--text-color': vibrantGradient.value.text,
-            '--text-secondary': vibrantGradient.value.textSecondary,
-            '--text-tertiary': vibrantGradient.value.textTertiary,
-            ...progressBarForText(vibrantGradient.value.text),
+            '--text-color': '#f5f5f5',
+            '--text-secondary': 'rgba(245, 245, 245, 0.85)',
+            '--text-tertiary': 'rgba(245, 245, 245, 0.7)',
+            ...lightProgressBar,
+            ...RADIAL_HIGH_CONTRAST_CHROME,
           };
         }
         return {
@@ -61,6 +76,7 @@ export function useBackgroundStyle(
           '--text-secondary': 'rgba(255, 255, 255, 0.8)',
           '--text-tertiary': 'rgba(255, 255, 255, 0.6)',
           ...lightProgressBar,
+          ...RADIAL_HIGH_CONTRAST_CHROME,
         };
 
       case 'blur-grain':

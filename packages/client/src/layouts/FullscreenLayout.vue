@@ -5,7 +5,7 @@ import DynamicBackground from '../components/DynamicBackground.vue';
 import { useColorExtraction } from '../composables/useColorExtraction';
 import { useBackgroundStyle } from '../composables/useBackgroundStyle';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
-import { DYNAMIC_BACKGROUND_TYPES } from '../composables/useBackgroundStyle';
+import { DYNAMIC_BACKGROUND_TYPES, RADIAL_HIGH_CONTRAST_CHROME } from '../composables/useBackgroundStyle';
 
 const props = defineProps<{
   track: Track | null;
@@ -38,9 +38,16 @@ const rootStyle = computed(() => {
   if (usesDynamicBackground.value) {
     return { ...albumChrome.value };
   }
+  if (props.background === 'gradient-radial') {
+    return {
+      ...(backgroundStyle.value || {}),
+      ...albumChrome.value,
+      ...RADIAL_HIGH_CONTRAST_CHROME,
+    };
+  }
   return {
-    ...albumChrome.value,
     ...(backgroundStyle.value || {}),
+    ...albumChrome.value,
   };
 });
 </script>

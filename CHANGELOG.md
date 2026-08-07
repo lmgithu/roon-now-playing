@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.42] - 2026-08-07
+
+### Fixed
+
+- **Radial Gradient chrome:** progress fill and fact dots always use high-contrast light chrome so they no longer blend into the monochromatic radial field (all layouts).
+
 ## [2.0.41] - 2026-08-07
 
 ### Changed

@@ -11,7 +11,11 @@ import type { Track, PlaybackState, BackgroundType } from '@roon-screen-cover/sh
 import { useFacts } from '../composables/useFacts';
 import { useAlbumTheme } from '../composables/useAlbumTheme';
 import { useColorExtraction } from '../composables/useColorExtraction';
-import { useBackgroundStyle, DYNAMIC_BACKGROUND_TYPES } from '../composables/useBackgroundStyle';
+import {
+  useBackgroundStyle,
+  DYNAMIC_BACKGROUND_TYPES,
+  RADIAL_HIGH_CONTRAST_CHROME,
+} from '../composables/useBackgroundStyle';
 import DynamicBackground from '../components/DynamicBackground.vue';
 
 const props = defineProps<{
@@ -47,15 +51,22 @@ const usesDynamicBackground = computed(() =>
   (DYNAMIC_BACKGROUND_TYPES as readonly string[]).includes(props.background)
 );
 
-/** Chrome vars + non-blur field styles when not using DynamicBackground */
+/** Chrome vars + field styles. Radial gets forced light progress/dots for contrast. */
 const layoutStyle = computed((): CSSProperties => {
   if (usesDynamicBackground.value) {
     // Blur field lives in DynamicBackground; only chrome CSS vars here
     return { ...albumChrome.value };
   }
+  if (props.background === 'gradient-radial') {
+    return {
+      ...backgroundStyle.value,
+      ...albumChrome.value,
+      ...RADIAL_HIGH_CONTRAST_CHROME,
+    };
+  }
   return {
-    ...albumChrome.value,
     ...backgroundStyle.value,
+    ...albumChrome.value,
   };
 });
 
