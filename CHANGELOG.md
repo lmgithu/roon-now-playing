@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.46] - 2026-08-07
+
+### Fixed
+
+- **Grainy Blur:** implement **only** the [Apple-Music-Background](https://github.com/frigopedro/Apple-Music-Background) recipe — full-size dominant-color 6×6 grid + glass (`rgba(0,0,0,0.3)` + `backdrop-filter: blur(90px)`). Removed zoom/scale, filter-blur on the grid, vignette, noise, and other extras.
+
 ## [2.0.45] - 2026-08-07
 
 ### Fixed
